@@ -13,6 +13,7 @@ import {
   type ModuleKey,
 } from "@/server/db/schema";
 import type { CompanyInput } from "./validation";
+import { ensureCatalogDefaults } from "@/server/modules/catalog/defaults";
 
 /** Módulos encendidos por defecto para una empresa nueva. */
 export const DEFAULT_MODULES: readonly ModuleKey[] = [
@@ -157,6 +158,8 @@ export async function provisionCompany(
       updatedBy: by,
     })),
   );
+
+  await ensureCatalogDefaults(conn, input.tenantId, company.id, by);
 
   return { company, branch, warehouse, register };
 }

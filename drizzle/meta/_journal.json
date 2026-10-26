@@ -8,6 +8,20 @@
       "when": 1792999568312,
       "tag": "0000_init",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1793054701680,
+      "tag": "0001_fase3_catalogo_inventario_ventas",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793054702385,
+      "tag": "0002_ledger_inmutable",
+      "breakpoints": true
     }
   ]
 }

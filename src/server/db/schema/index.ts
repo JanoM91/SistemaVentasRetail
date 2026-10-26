@@ -3,3 +3,6 @@ export * from "./organization";
 export * from "./identity";
 export * from "./audit";
 export * from "./commerce-config";
+export * from "./catalog";
+export * from "./inventory";
+export * from "./sales";
