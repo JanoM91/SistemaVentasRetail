@@ -18,7 +18,8 @@
     "test:unit": "vitest run tests/unit",
     "test:integration": "vitest run tests/integration",
     "check": "npm run typecheck && npm run lint && npm test && npm run build",
-    "test:e2e": "node tests/e2e/smoke.mjs"
+    "test:e2e": "node tests/e2e/pos.mjs && node tests/e2e/smoke.mjs",
+    "stock:verify": "tsx scripts/verify-stock.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

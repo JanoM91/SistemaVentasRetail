@@ -18,6 +18,11 @@ import {
   Users,
   X,
   KeyRound,
+  ShoppingCart,
+  Receipt,
+  Wallet,
+  Package,
+  Boxes,
 } from "lucide-react";
 import { cx } from "@/components/ui";
 import type { NavItem } from "./nav";
@@ -31,6 +36,11 @@ const ICONS = {
   settings: Settings,
   scroll: ScrollText,
   server: Server,
+  cart: ShoppingCart,
+  receipt: Receipt,
+  wallet: Wallet,
+  package: Package,
+  boxes: Boxes,
 };
 
 export type ShellProps = {
@@ -51,12 +61,15 @@ export function AppShell({ items, user, company, branch, companies, branches, sw
 
   const nav = (
     <nav className="flex flex-col gap-1 p-3" aria-label="Principal">
-      {items.map((item) => {
+      {items.map((item, idx) => {
         const Icon = ICONS[item.icon];
+        const prev = items[idx - 1];
+        const separator = prev && (prev.group ?? "inicio") !== (item.group ?? "inicio");
         const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
         return (
+          <div key={item.href} className="contents">
+          {separator && <div className="my-1 border-t border-border" role="separator" />}
           <Link
-            key={item.href}
             href={item.href}
             onClick={() => setOpen(false)}
             aria-current={active ? "page" : undefined}
@@ -68,6 +81,7 @@ export function AppShell({ items, user, company, branch, companies, branches, sw
             <Icon className="size-5 shrink-0" aria-hidden />
             {item.label}
           </Link>
+          </div>
         );
       })}
     </nav>
@@ -101,7 +115,7 @@ export function AppShell({ items, user, company, branch, companies, branches, sw
       )}
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-border bg-surface px-3 sm:px-4">
+        <header data-app-header className="sticky top-0 z-30 flex min-h-14 items-center pt-[env(safe-area-inset-top)] gap-2 border-b border-border bg-surface px-3 sm:px-4">
           <button className="rounded-app p-2 hover:bg-surface-2 lg:hidden" onClick={() => setOpen(true)} aria-label="Abrir menú">
             <Menu className="size-5" />
           </button>

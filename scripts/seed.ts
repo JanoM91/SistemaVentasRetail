@@ -12,9 +12,16 @@
  */
 import "dotenv/config";
 import { and, eq, isNull } from "drizzle-orm";
+import { resolveAuthz } from "../src/server/authz/resolve";
+import { createProduct } from "../src/server/modules/catalog/service";
+import { ensureCatalogDefaults } from "../src/server/modules/catalog/defaults";
 import { db, pool } from "../src/server/db";
 import {
   branches,
+  companies,
+  products,
+  taxProfiles,
+  unitsOfMeasure,
   cashRegisters,
   currencies,
   roles,
@@ -161,11 +168,61 @@ async function seedDemo() {
   console.log(`✔ Tenant demo con empresa, 2 sucursales y usuarios ${DEMO.owner.username}, ${DEMO.manager.username}, ${DEMO.cashier.username}`);
 }
 
+/** Catálogo de demostración (idempotente): abarrotes, granel y ropa con variantes. */
+async function seedDemoCatalog() {
+  const [tenant] = await db.select().from(tenants).where(eq(tenants.slug, "demo")).limit(1);
+  if (!tenant) return;
+  const [owner] = await db.select().from(users).where(and(eq(users.tenantId, tenant.id), eq(users.username, DEMO.owner.username))).limit(1);
+  const [company] = await db.select().from(companies).where(eq(companies.tenantId, tenant.id)).limit(1);
+  const [centro] = await db.select().from(branches).where(and(eq(branches.companyId, company.id), eq(branches.code, "CENTRO"))).limit(1);
+  const [already] = await db.select({ id: products.id }).from(products).where(eq(products.companyId, company.id)).limit(1);
+  if (already) {
+    console.log("· Catálogo demo ya existe");
+    return;
+  }
+  await ensureCatalogDefaults(db, tenant.id, company.id, owner.id);
+  const authz = await resolveAuthz({ userId: owner.id, tenantId: tenant.id, isSuperadmin: false, requestedCompanyId: company.id, requestedBranchId: centro.id });
+  const ctx = { ...authz, actor: { tenantId: tenant.id, userId: owner.id, companyId: company.id, branchId: centro.id, ip: null, userAgent: "seed", deviceId: "seed" } };
+  const unit = async (code: string) => (await db.select().from(unitsOfMeasure).where(and(eq(unitsOfMeasure.companyId, company.id), eq(unitsOfMeasure.code, code))))[0].id;
+  const tax = async (code: string) => (await db.select().from(taxProfiles).where(and(eq(taxProfiles.companyId, company.id), eq(taxProfiles.code, code))))[0].id;
+  const PZA = await unit("PZA");
+  const KG = await unit("KG");
+  const IVA16 = await tax("IVA16");
+  const IVA0 = await tax("IVA0");
+  const simple = (name: string, sku: string, cat: string, price: string, cost: string | null, stock: number, opts: { barcode?: string; unitId?: string; taxId?: string; fav?: boolean; brand?: string } = {}) =>
+    createProduct(ctx, {
+      name, sku, kind: "simple", categoryName: cat, brandName: opts.brand ?? "", unitId: opts.unitId ?? PZA, taxProfileId: opts.taxId ?? IVA16, isFavorite: opts.fav ?? false,
+      variants: [{ sku, price, cost, barcodes: opts.barcode ? [opts.barcode] : [], initialStock: stock, minStock: null, reorderPoint: "5" }],
+    });
+  await simple("Refresco de cola 600 ml", "REF-COLA-600", "Bebidas", "18.50", "11.20", 48, { barcode: "7500000000011", fav: true, brand: "Genérica" });
+  await simple("Agua natural 1 L", "AGUA-1L", "Bebidas", "12.00", "6.50", 36, { barcode: "7500000000028", fav: true });
+  await simple("Jugo de naranja 1 L", "JUGO-NAR-1L", "Bebidas", "32.00", "21.00", 12, { barcode: "7500000000035" });
+  await simple("Papas fritas 45 g", "PAPAS-45", "Botanas", "19.00", "12.40", 30, { barcode: "7500000000042", fav: true });
+  await simple("Galletas de avena 300 g", "GALL-AVENA", "Botanas", "35.00", null, 15, { barcode: "7500000000059" });
+  await simple("Arroz blanco 1 kg", "ARROZ-1K", "Abarrotes", "29.90", "19.50", 20, { barcode: "7500000000066", taxId: IVA0 });
+  await simple("Frijol negro 1 kg", "FRIJOL-1K", "Abarrotes", "42.00", "30.00", 3, { barcode: "7500000000073", taxId: IVA0 });
+  await simple("Huevo blanco (granel)", "HUEVO-KG", "Abarrotes", "48.00", "38.00", 10, { unitId: KG, taxId: IVA0, fav: true });
+  await simple("Jitomate saladet (granel)", "JITO-KG", "Frutas y verduras", "32.90", "22.00", 8.5, { unitId: KG, taxId: IVA0, fav: true });
+  await simple("Bolsa reutilizable", "BOLSA", "Varios", "15.00", "6.00", 50, { fav: true });
+  await createProduct(ctx, {
+    name: "Playera básica algodón", sku: "PLAY", kind: "variable", categoryName: "Ropa", brandName: "Exk Basics", unitId: PZA, taxProfileId: IVA16, isFavorite: true,
+    attributeNames: ["Talla", "Color"],
+    variants: [
+      { sku: "PLAY-CH-NEG", attributeValues: { Talla: "CH", Color: "Negro" }, price: "199", cost: "85", barcodes: ["7500000001001"], initialStock: 6 },
+      { sku: "PLAY-M-NEG", attributeValues: { Talla: "M", Color: "Negro" }, price: "199", cost: "85", barcodes: ["7500000001002"], initialStock: 8 },
+      { sku: "PLAY-G-NEG", attributeValues: { Talla: "G", Color: "Negro" }, price: "219", cost: "90", barcodes: ["7500000001003"], initialStock: 4 },
+      { sku: "PLAY-M-BCO", attributeValues: { Talla: "M", Color: "Blanco" }, price: "199", cost: "85", barcodes: ["7500000001004"], initialStock: 5 },
+    ],
+  });
+  console.log("✔ Catálogo demo: 11 productos (uno con 4 variantes) con existencias en Sucursal Centro");
+}
+
 async function main() {
   await seedSystemRoles();
   await seedCurrencies();
   await seedPlatform();
   await seedDemo();
+  await seedDemoCatalog();
   console.log("\nCredenciales de demostración:");
   for (const [k, v] of Object.entries(DEMO)) console.log(`  ${k.padEnd(10)} ${v.username} / ${v.password}`);
 }

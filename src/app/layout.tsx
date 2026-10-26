@@ -4,16 +4,15 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: { default: "Sistema de Caja", template: "%s · Sistema de Caja" },
   description: "Gestión comercial para negocios retail: ventas, inventario, clientes y reportes.",
-  applicationName: "Sistema de Caja",
+  applicationName: "Caja",
+  appleWebApp: { capable: true, title: "Caja", statusBarStyle: "black-translucent" },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f6f7f9" },
-    { media: "(prefers-color-scheme: dark)", color: "#0f1115" },
-  ],
+  themeColor: "#101B2E",
+  viewportFit: "cover",
 };
 
 /** Aplica el tema antes de pintar para evitar parpadeo. */

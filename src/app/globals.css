@@ -72,6 +72,8 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Componentes base en la capa "components": las utilidades (pl-10, w-auto…) pueden sobrescribirlos. */
+@layer components {
 /* Campos de formulario base */
 .field {
   @apply w-full rounded-app border border-border bg-surface px-3 py-2 text-base text-text placeholder:text-muted outline-none transition focus:border-primary focus:ring-2 focus:ring-focus disabled:opacity-60;
@@ -102,9 +104,58 @@ select.field {
 a.link {
   @apply text-primary underline-offset-2 hover:underline;
 }
+}
 
 @media (prefers-reduced-motion: reduce) {
   * {
     transition: none !important;
+  }
+}
+
+/* Impresión: solo el contenido (sin barra lateral ni encabezado). */
+@media print {
+  aside,
+  header[data-app-header] {
+    display: none !important;
+  }
+  main {
+    max-width: none !important;
+    padding: 0 !important;
+  }
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+}
+
+/* Ticket térmico de 80 mm */
+.ticket {
+  width: 72mm;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.35;
+  color: #000;
+  background: #fff;
+}
+@media print {
+  @page ticket {
+    size: 80mm auto;
+    margin: 4mm;
+  }
+}
+
+/* Impresión del ticket desde el POS: solo el área del ticket. */
+@media print {
+  body.printing-ticket * {
+    visibility: hidden !important;
+  }
+  body.printing-ticket .print-area,
+  body.printing-ticket .print-area * {
+    visibility: visible !important;
+  }
+  body.printing-ticket .print-area {
+    position: absolute;
+    inset: 0 auto auto 0;
+    border: 0 !important;
   }
 }

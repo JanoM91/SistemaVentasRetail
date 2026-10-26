@@ -2,7 +2,11 @@
 
 Plataforma SaaS de gestión comercial para negocios retail: punto de venta, inventario, clientes, promociones y analítica, multiempresa y preparada para operar sin internet. Producto de Exkalibur Consulting (nombre comercial pendiente).
 
-**Estado: Fase 2 — base técnica.** Incluye autenticación, cuentas (tenants), empresas, sucursales, almacenes, cajas, usuarios, roles y permisos, módulos activables, configuración y bitácora. El catálogo, el inventario y el POS llegan en la Fase 3 (ver `docs/09-roadmap.md`).
+**Estado: Fase 3 — primer producto funcional.**
+
+- **Fase 2 (base):** autenticación, cuentas (tenants), empresas, sucursales, almacenes, cajas, usuarios, roles y permisos, módulos activables, configuración y bitácora.
+- **Fase 3 (vender):** catálogo con variantes y códigos de barras, inventario con libro inmutable y costo promedio, caja con cortes X y Z, punto de venta táctil con ticket de 80 mm, venta **sin internet** con sincronización sin duplicados, app instalable (PWA).
+- **Siguiente (Fase 4):** compras, traspasos, devoluciones, pagos divididos, clientes, crédito y promociones. Ver `docs/09-roadmap.md` y el reporte `docs/11-entrega-fase-3.md`.
 
 ## Stack
 
@@ -48,6 +52,8 @@ Resultado esperado: en `http://localhost:3000/login` puedes entrar con las crede
 | `gerente` | `Gerente1234!` | Gerente (solo Sucursal Centro) | demo |
 | `cajero` | `Cajero1234!` | Cajero (solo Sucursal Centro) | demo |
 
+Las semillas cargan además un catálogo demo (bebidas, botanas, abarrotes, granel y una playera con tallas y colores) con existencias en «Sucursal Centro». Para vender: entra como `cajero`, abre la caja en **Caja** y ve a **Punto de venta**; prueba escanear `7500000000011`.
+
 Estas contraseñas son públicas (el repositorio es público). **Nunca siembres un entorno real con ellas:** define `SEED_*_PASSWORD` propias antes de `npm run db:seed`.
 
 ## Scripts
@@ -59,7 +65,8 @@ Estas contraseñas son públicas (el repositorio es público). **Nunca siembres 
 | `npm run typecheck` | Verifica tipos con TypeScript. |
 | `npm run lint` | ESLint. |
 | `npm test` | Pruebas unitarias e integración (necesita `TEST_DATABASE_URL` en `.env.test`; la base se vacía en cada corrida). |
-| `npm run test:e2e` | Recorrido extremo a extremo con Playwright contra un servidor en marcha (`BASE_URL`, por defecto `http://localhost:3100`). |
+| `npm run test:e2e` | Recorridos extremo a extremo con Playwright contra un servidor en marcha (`BASE_URL`, por defecto `http://localhost:3100`) y una base recién sembrada (`npm run db:reset`): POS en línea y sin conexión, sincronización y corte Z; administración. |
+| `npm run stock:verify` | Recalcula existencias desde el libro de inventario y las compara con los saldos (sale con código 1 si hay diferencias). |
 | `npm run check` | typecheck + lint + test + build. |
 | `npm run db:generate` | Genera una migración SQL a partir de los cambios en `src/server/db/schema`. |
 | `npm run db:migrate` | Aplica migraciones pendientes. |
@@ -73,7 +80,10 @@ Estas contraseñas son públicas (el repositorio es público). **Nunca siembres 
 docs/            especificación (fase 1) y ADRs
 drizzle/         migraciones SQL versionadas
 scripts/         seed y utilidades
-src/app/         rutas Next.js: (auth)/login, (app)/* (área autenticada), api/
+src/app/         rutas Next.js: (auth)/login, (app)/* (administración), (pos)/pos (punto de venta),
+                 (print)/ticket, api/v1/* (JSON del POS y sincronización)
+src/lib/pos/     almacenamiento local (IndexedDB) y motor de sincronización del POS
+public/sw.js     service worker (abre el POS sin conexión)
 src/components/  ui/ (botones, formularios, tablas) y layout/ (navegación)
 src/server/      db/ (esquema), auth/, authz/ (permisos), audit/, modules/* (servicios)
 tests/           unit/, integration/ (Postgres real), e2e/ (Playwright)
@@ -89,6 +99,12 @@ Cómo fluye una mutación: formulario → Server Action (`src/app/**/actions.ts`
 4. Despliega. `GET /api/health` debe responder `{"ok":true,"database":"up"}`.
 
 También puedes ejecutar la app en cualquier host con Docker: `docker compose --profile app up --build`.
+
+## Punto de venta sin conexión
+
+El POS guarda en el dispositivo la pantalla, el catálogo de la sucursal y una cola de ventas. Sin internet se puede vender en efectivo (incluso recargando la página); el ticket sale con folio «PENDIENTE» y al volver la red las ventas se envían solas. El servidor reconoce cada venta por su identificador, así que reintentos o envíos repetidos nunca la duplican. Lo que no cuadra (precio cambiado, inventario negativo, turno ya cerrado) se registra y queda marcado en **Ventas → Con observaciones**. Detalles en `docs/adr/ADR-004-venta-offline-idempotente.md`.
+
+Para usarlo como app: iPhone → Safari → Compartir → «Agregar a pantalla de inicio»; Android → Chrome → ⋮ → «Instalar app». Ábrelo una vez con internet en cada dispositivo para que quede disponible sin conexión.
 
 ## Seguridad (resumen)
 

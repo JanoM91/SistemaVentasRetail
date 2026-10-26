@@ -59,6 +59,8 @@ sistema-caja/
 ├─ src/
 │  ├─ app/                   rutas Next.js
 │  │  ├─ (auth)/login        inicio de sesión
+│  │  ├─ (pos)/pos           punto de venta a pantalla completa (PWA, offline)
+│  │  ├─ (print)/ticket      ticket imprimible de 80 mm
 │  │  ├─ (app)/              área autenticada (layout con navegación)
 │  │  │  ├─ page.tsx         inicio
 │  │  │  ├─ empresas/ sucursales/ usuarios/ roles/ configuracion/ bitacora/
@@ -103,13 +105,15 @@ Las lecturas usan `queries.ts` desde Server Components con el mismo contexto; nu
 - Fechas en `timestamptz` UTC; la zona horaria de empresa/sucursal se aplica al mostrar y al calcular "día de venta" y cortes.
 - Identificadores `uuid` (v7 cuando los genere el cliente offline; v4/v7 en servidor). Los registros creados offline conservan su id para idempotencia.
 
-## 7. Offline y sincronización (diseño, se implementa en F3)
+## 7. Offline y sincronización (implementado en F3; ver ADR-004)
 
-- Catálogo, precios, promociones y configuración se replican a IndexedDB por sucursal con versión incremental (`updated_at` + borrado lógico).
-- Cada venta offline genera `sale.id` (uuid v7) y un `client_sequence` por caja; la cola envía lotes en orden; el servidor aplica `INSERT ... ON CONFLICT (id) DO NOTHING` y responde el estado por elemento (`applied`, `duplicate`, `conflict`, `rejected`).
-- Conflictos típicos: precio distinto al actual (se respeta el cobrado y se marca), producto desactivado (se acepta y se alerta), inventario negativo (permitido con alerta si la empresa lo configura).
-- Funciones que dependen de terceros (facturación, pagos en línea, pedidos externos) se marcan "pendiente" y se procesan al reconectar.
-- El Service Worker cachea la aplicación (app shell) y nunca respuestas de datos sensibles.
+- **App shell:** `public/sw.js` guarda la pantalla `/pos` y sus archivos estáticos (`/_next/static`). Navegación a `/pos`: primero red, sin red la última versión guardada. Nunca guarda respuestas de `/api`. Otras pantallas sin red muestran `/offline.html`.
+- **Catálogo local:** `GET /api/v1/pos/catalog` entrega el catálogo de la sucursal (precios, impuestos, códigos, existencias, métodos de pago); el POS lo guarda en IndexedDB (`src/lib/pos/local-db.ts`) y busca en memoria. Si no hay red, usa la última copia e indica su antigüedad.
+- **Venta:** el POS genera el `id` (UUID v7) y lo conserva entre reintentos del mismo cobro. En línea envía `POST /api/v1/pos/sales`; si la red falla o tarda (10 s) o el servidor responde 5xx, la venta se guarda en la cola local `outbox` con ticket provisional (folio «PENDIENTE»). Sin red solo se acepta efectivo.
+- **Sincronización:** `src/lib/pos/sync.ts` envía la cola en lotes de 20, ordenada por `clientSequence`, a `POST /api/v1/sync` al reconectar, cada 30 s y tras cada venta. Cada venta se aplica en su propia transacción (`createSale` con `origin: "offline"`). Respuestas: `applied`, `duplicate` (ya existía: el UUID es la llave primaria), `conflict` (aplicada con observaciones) o `rejected` (no se pudo registrar; queda en el dispositivo y en `sync_events`, nunca se borra en silencio).
+- **Reglas offline:** lo cobrado se respeta. Precio distinto al catálogo, existencia negativa, turno ya cerrado, producto desactivado, descuento sin permiso o sincronización tardía (> 72 h) se aceptan y se marcan en `sales.flags` para revisión en Ventas → «Con observaciones».
+- **Usuario:** cada venta en cola guarda el usuario que la hizo; solo ese usuario la sincroniza (el servidor atribuye la venta a la sesión que la envía).
+- Funciones que dependen de terceros (facturación, pagos con terminal integrada, pedidos externos) no se ofrecen sin conexión.
 
 ## 8. Integraciones por adaptador
 
@@ -128,7 +132,7 @@ Cada integración define una interfaz en `src/server/adapters/<tipo>/types.ts` y
 
 - Contraseñas: bcrypt coste 12, política mínima 8 caracteres, bloqueo temporal tras 5 intentos fallidos en 15 minutos.
 - Sesión: token aleatorio de 32 bytes, almacenado como SHA-256 en BD, cookie `httpOnly`, `Secure` en producción, `SameSite=Lax`; renovación deslizante; revocación por usuario.
-- CSRF: Server Actions verifican origen; la API JSON exige encabezado `Authorization` o token de integración y no acepta cookies para mutaciones.
+- CSRF: Server Actions verifican origen. La API JSON del POS usa la cookie de sesión y, en mutaciones, exige el encabezado `x-sc-client: pos` y que el `Origin` (si viene) sea el mismo sitio; un sitio ajeno no puede enviar encabezados propios sin CORS, que no se habilita (`src/server/api.ts`). Las integraciones externas usarán tokens propios (F5).
 - Entradas: zod en todas las acciones; consultas parametrizadas vía Drizzle; sin SQL concatenado.
 - XSS: React escapa por defecto; se prohíbe `dangerouslySetInnerHTML` salvo en el renderizado de tickets con sanitización.
 - Encabezados: CSP básica, `X-Frame-Options`, `Referrer-Policy`, HSTS en producción.

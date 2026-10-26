@@ -22,9 +22,16 @@ Cada criterio se verifica con una prueba automatizada (U = unitaria, I = integra
 | AC-12 | No hay botones principales sin funcionalidad en las pantallas de la fase. | M: revisión de pantallas | Cubierto |
 | AC-13 | La interfaz está en español, funciona en computadora, tableta y celular y ofrece modo claro/oscuro. | M | Cubierto |
 
-## Fase 3
+## Fase 3 (entregada el 2026-10-26)
 
-AC-20 Un gerente registra productos, variantes, costos y existencias. · AC-21 Un cajero vende escaneando o buscando. · AC-22 El inventario se descuenta automáticamente y el libro es inmutable (las correcciones generan compensatorios). · AC-23 Se realizan ventas sin internet y se sincronizan sin duplicados (prueba con reenvío del mismo lote). · AC-24 Apertura, retiros, arqueo, corte X y Z con diferencia registrada. · AC-25 Ticket digital e impresión.
+| # | Criterio | Verificación | Estado |
+| --- | --- | --- | --- |
+| AC-20 | Un gerente registra productos simples y con variantes, con SKU, códigos de barras, costos y existencia inicial. | I: `phase3.test.ts` › catálogo; E: `pos.mjs` (alta de «Café molido») | Cubierto |
+| AC-21 | Un cajero vende escaneando, buscando o tocando productos, con variantes y cantidades a granel. | I: `phase3.test.ts` › AC-21/22; E: `pos.mjs` | Cubierto |
+| AC-22 | El inventario se descuenta automáticamente; el libro es inmutable (trigger en Postgres) y las correcciones generan movimientos compensatorios. | I: `phase3.test.ts` › inventario y AC-22; `npm run stock:verify` | Cubierto |
+| AC-23 | Se vende sin internet (incluso recargando la página) y se sincroniza sin duplicados: reenvíos y envíos simultáneos de la misma venta producen una sola. | I: `phase3.test.ts` › AC-23 (×2); E: `pos.mjs` › sin conexión y sincronización | Cubierto |
+| AC-24 | Apertura con fondo, retiros, depósitos, corte X, corte Z por denominación con diferencia registrada; cancelación autorizada que regresa inventario y efectivo. | I: `phase3.test.ts` › AC-24; E: `pos.mjs` › corte Z | Cubierto |
+| AC-25 | Ticket en pantalla, imprimible en 80 mm y reimprimible; ticket provisional para ventas sin conexión. | E: `pos.mjs` (folio en ticket, ticket pendiente); ruta `/ticket/[id]` | Cubierto |
 
 ## Fase 4
 
