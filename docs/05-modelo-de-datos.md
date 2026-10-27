@@ -84,6 +84,17 @@ El historial de precios del proveedor se obtiene de `purchase_receipt_lines` (no
 | `sale_return_lines` | Lo devuelto por línea de venta: cantidad, importe proporcional a lo cobrado (la última unidad toma el resto exacto), costo original, si regresó al inventario (`return_in`) o fue merma. |
 | `store_credit_redemptions` | Canje de vales en ventas (pago de tipo `prepaid` con el folio como referencia); se revierte si la venta se cancela. |
 
+## 5d. Promociones y precios (implementado en 4D)
+
+| Tabla | Propósito |
+| --- | --- |
+| `promotions` | Regla: tipo (`percent`, `amount`, `special_price`, `buy_x_pay_y`, `volume`, `bundle`, `order_percent`, `order_amount`), valores, alcance (todos/categorías/productos), vigencia, días, horario, sucursales, grupos, cupón, compra mínima, límites, prioridad, acumulable. El cálculo vive en `src/lib/promotions.ts`, compartido con el POS. |
+| `coupons` | Código (único por empresa, sin distinguir mayúsculas) que desbloquea una promoción; usos máximos, contador, vencimiento. |
+| `promotion_redemptions` | Uso de una promoción en una venta (importe y explicación); se revierte si la venta se cancela. Base de los límites de uso. |
+| `price_lists` + `price_list_items` | Lista de precios con ajuste porcentual general y precios fijos por variante; se asigna a `customer_groups.price_list_id`. |
+| `sale_lines.promotion_discount` | Parte del descuento de la línea que viene de promociones (el resto es manual). |
+| `sales.reviewed_at/by`, `review_note` | Revisión de ventas con observaciones. |
+
 ## 6. Ventas y caja (F3 base; F4 completa)
 
 | Tabla | Propósito |

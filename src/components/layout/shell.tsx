@@ -25,6 +25,7 @@ import {
   Boxes,
   Truck,
   Contact,
+  BadgePercent,
 } from "lucide-react";
 import { cx } from "@/components/ui";
 import type { NavItem } from "./nav";
@@ -45,6 +46,7 @@ const ICONS = {
   boxes: Boxes,
   truck: Truck,
   contact: Contact,
+  percent: BadgePercent,
 };
 
 export type ShellProps = {

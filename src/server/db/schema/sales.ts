@@ -89,7 +89,7 @@ export const cashMovements = pgTable(
 // ---------------------------------------------------------------- Ventas
 
 export type SaleFlag = {
-  code: "price_changed" | "negative_stock" | "session_closed" | "variant_inactive" | "late_sync" | "discount_unauthorized" | "customer_missing";
+  code: "price_changed" | "negative_stock" | "session_closed" | "variant_inactive" | "late_sync" | "discount_unauthorized" | "customer_missing" | "promotion_mismatch";
   detail: string;
 };
 
@@ -134,6 +134,10 @@ export const sales = pgTable(
     cancelAuthorizedBy: uuid("cancel_authorized_by").references(() => users.id),
     cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
     cancelReason: text("cancel_reason"),
+    /** Revisión de una venta con observaciones (pantalla de revisión, 4D). */
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    reviewedBy: uuid("reviewed_by").references(() => users.id),
+    reviewNote: text("review_note"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
   },
   (t) => [
@@ -161,6 +165,8 @@ export const saleLines = pgTable(
     /** Precio de catálogo al momento de vender (para detectar cambios). */
     listPrice: money("list_price").notNull(),
     discountAmount: money("discount_amount").notNull().default(0),
+    /** Parte del descuento que viene de promociones (el resto es manual). */
+    promotionDiscount: money("promotion_discount").notNull().default(0),
     taxRate: numeric("tax_rate", { precision: 9, scale: 6 }).notNull(),
     taxIncluded: boolean("tax_included").notNull().default(true),
     taxAmount: money("tax_amount").notNull(),

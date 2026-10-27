@@ -8,6 +8,7 @@ export function VentasTabs({ ctx, active }: { ctx: RequestContext; active: strin
       tabs={[
         { href: "/ventas", label: "Ventas" },
         { href: "/ventas/devoluciones", label: "Devoluciones", show: ctx.permissions.has("returns.create") },
+        { href: "/ventas/revision", label: "Por revisar", show: ctx.permissions.has("pos.cancel") },
       ]}
     />
   );

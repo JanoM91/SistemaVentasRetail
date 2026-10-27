@@ -16,6 +16,8 @@ export type TicketData = {
   customerName?: string | null;
   /** Venta a crédito: importe cargado, saldo resultante y vencimiento. */
   credit?: { amount: number; balance: number | null; dueDate: string | null } | null;
+  /** Promociones aplicadas con su explicación (p. ej. «2x1 Refrescos (2x1): −$18.50»). */
+  promotions?: Array<{ description: string; amount: number }>;
   offline?: boolean;
 };
 
@@ -57,6 +59,12 @@ export function Ticket({ t }: { t: TicketData }) {
       <hr className="my-2 border-dashed border-black" />
       <div className="flex justify-between"><span>Subtotal</span><span>{money(t.totals.subtotal)}</span></div>
       <div className="flex justify-between"><span>Impuestos</span><span>{money(t.totals.tax)}</span></div>
+      {!!t.promotions?.length && (
+        <div className="my-1">
+          <p className="font-bold">Promociones</p>
+          {t.promotions.map((p, i) => <p key={i}>{p.description}</p>)}
+        </div>
+      )}
       {t.totals.discount > 0 && <div className="flex justify-between"><span>Ahorro</span><span>{money(t.totals.discount)}</span></div>}
       <div className="flex justify-between text-sm font-bold"><span>TOTAL</span><span>{money(t.totals.total)}</span></div>
       <hr className="my-2 border-dashed border-black" />

@@ -1,5 +1,6 @@
 "use server";
 
+import { savePaymentMethod, saveTaxProfile } from "@/server/modules/settings/service";
 import { revalidatePath } from "next/cache";
 import { requireActionContext } from "@/server/context";
 import { toActionError, type ActionResult } from "@/server/errors";
@@ -32,6 +33,33 @@ export async function updateModulesAction(_p: ActionResult<unknown> | null, form
     await setCompanyModules(ctx, String(formData.get("companyId")), formData.getAll("modules[]").map(String));
     revalidatePath("/", "layout");
     return { ok: true, data: null };
+  } catch (err) {
+    return toActionError(err);
+  }
+}
+
+// ---------------------------------------------------------------- Métodos de pago e impuestos (4D)
+
+
+export async function savePaymentMethodAction(_p: ActionResult<unknown> | null, formData: FormData): R {
+  try {
+    const ctx = await requireActionContext();
+    const o = formToObject(formData);
+    await savePaymentMethod(ctx, o.id ? String(o.id) : null, o);
+    revalidatePath("/configuracion");
+    return { ok: true, data: null };
+  } catch (err) {
+    return toActionError(err);
+  }
+}
+
+export async function saveTaxAction(_p: ActionResult<unknown> | null, formData: FormData): Promise<ActionResult<{ productsAffected: number }>> {
+  try {
+    const ctx = await requireActionContext();
+    const o = formToObject(formData);
+    const r = await saveTaxProfile(ctx, o.id ? String(o.id) : null, o);
+    revalidatePath("/configuracion");
+    return { ok: true, data: { productsAffected: r.productsAffected } };
   } catch (err) {
     return toActionError(err);
   }

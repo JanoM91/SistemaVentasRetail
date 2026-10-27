@@ -22,6 +22,8 @@ import {
   companies,
   companyModules,
   customers,
+  customerGroups,
+  promotions,
   products,
   productSuppliers,
   productVariants,
@@ -42,6 +44,7 @@ import { hashPassword } from "../src/server/auth/password";
 import { provisionCompany } from "../src/server/modules/companies/provision";
 import { createSupplier } from "../src/server/modules/purchasing/service";
 import { createCustomer, saveGroup, setCreditTerms } from "../src/server/modules/customers/service";
+import { createCoupons, createPromotion, savePriceList, setPriceListItems } from "../src/server/modules/promotions/service";
 
 const DEMO = {
   superadmin: { username: "superadmin", password: process.env.SEED_SUPERADMIN_PASSWORD ?? "Admin1234!" },
@@ -291,6 +294,39 @@ async function seedDemoCustomers() {
   console.log("✔ Clientes demo: 4 clientes (2 con crédito) y 2 grupos");
 }
 
+/**
+ * Promociones demo (idempotente). Usan productos que no tocan los recorridos
+ * E2E: 3x2 en galletas, jugo a precio especial entre semana por la mañana,
+ * cupón de bienvenida y lista de precios de mayoreo en abarrotes.
+ */
+async function seedDemoPromotions() {
+  const [tenant] = await db.select().from(tenants).where(eq(tenants.slug, "demo")).limit(1);
+  if (!tenant) return;
+  const [company] = await db.select().from(companies).where(eq(companies.tenantId, tenant.id)).limit(1);
+  const [already] = await db.select({ id: promotions.id }).from(promotions).where(eq(promotions.companyId, company.id)).limit(1);
+  if (already) {
+    console.log("· Promociones demo ya existen");
+    return;
+  }
+  const [owner] = await db.select().from(users).where(and(eq(users.tenantId, tenant.id), eq(users.username, DEMO.owner.username))).limit(1);
+  const [centro] = await db.select().from(branches).where(and(eq(branches.companyId, company.id), eq(branches.code, "CENTRO"))).limit(1);
+  const authz = await resolveAuthz({ userId: owner.id, tenantId: tenant.id, isSuperadmin: false, requestedCompanyId: company.id, requestedBranchId: centro.id });
+  const ctx = { ...authz, actor: { tenantId: tenant.id, userId: owner.id, companyId: company.id, branchId: centro.id, ip: null, userAgent: "seed", deviceId: "seed" } };
+  const variant = async (sku: string) => (await db.select({ id: productVariants.id, productId: productVariants.productId }).from(productVariants).where(and(eq(productVariants.companyId, company.id), eq(productVariants.sku, sku))))[0];
+  const galletas = await variant("GALL-AVENA");
+  const jugo = await variant("JUGO-NAR-1L");
+  const arroz = await variant("ARROZ-1K");
+  const frijol = await variant("FRIJOL-1K");
+  await createPromotion(ctx, { name: "3x2 en galletas", kind: "buy_x_pay_y", buyQty: 3, payQty: 2, scope: "products", productIds: [galletas.productId], priority: 10 });
+  await createPromotion(ctx, { name: "Jugo mañanero", kind: "special_price", amount: "28", scope: "products", productIds: [jugo.productId], daysOfWeek: [1, 2, 3, 4, 5], timeFrom: "07:00", timeTo: "11:00", priority: 5 });
+  const bienvenida = await createPromotion(ctx, { name: "Bienvenida 10 %", kind: "order_percent", percent: 10, scope: "all", requiresCoupon: true, maxUsesPerCustomer: 1 });
+  await createCoupons(ctx, bienvenida.id, { mode: "single", code: "BIENVENIDA10" });
+  const list = await savePriceList(ctx, null, { name: "Mayoreo" });
+  await setPriceListItems(ctx, list.id, { items: [{ variantId: arroz.id, price: "27.00" }, { variantId: frijol.id, price: "39.00" }] });
+  await db.update(customerGroups).set({ priceListId: list.id }).where(and(eq(customerGroups.companyId, company.id), eq(customerGroups.name, "Mayoreo")));
+  console.log("✔ Promociones demo: 3x2 galletas, jugo mañanero, cupón BIENVENIDA10 y lista Mayoreo");
+}
+
 async function main() {
   await seedSystemRoles();
   await seedCurrencies();
@@ -299,6 +335,7 @@ async function main() {
   await seedDemoCatalog();
   await seedDemoPurchasing();
   await seedDemoCustomers();
+  await seedDemoPromotions();
   console.log("\nCredenciales de demostración:");
   for (const [k, v] of Object.entries(DEMO)) console.log(`  ${k.padEnd(10)} ${v.username} / ${v.password}`);
 }

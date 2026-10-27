@@ -5,6 +5,7 @@ import { branches, companies, tenants } from "./organization";
 import { users } from "./identity";
 import { cashSessions, sales } from "./sales";
 import { paymentMethods } from "./commerce-config";
+import { priceLists } from "./promotions";
 
 const money = (name: string) => bigint(name, { mode: "number" });
 
@@ -17,6 +18,8 @@ export const customerGroups = pgTable(
     companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "restrict" }),
     name: text("name").notNull(),
     description: text("description"),
+    /** Lista de precios que se aplica a los clientes del grupo (4D). */
+    priceListId: uuid("price_list_id").references(() => priceLists.id, { onDelete: "set null" }),
     ...auditColumns,
   },
   (t) => [uniqueIndex("customer_groups_name_idx").on(t.companyId, sql`lower(${t.name})`)],

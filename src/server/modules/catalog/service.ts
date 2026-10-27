@@ -676,7 +676,7 @@ export async function searchVariants(ctx: ServiceContext, q: string, limit = 20)
   if (!term) return [];
   const like = `%${term}%`;
   return db
-    .select({ id: productVariants.id, sku: productVariants.sku, variantName: productVariants.variantName, name: products.name, price: productVariants.price, trackStock: products.trackStock })
+    .select({ id: productVariants.id, productId: products.id, sku: productVariants.sku, variantName: productVariants.variantName, name: products.name, price: productVariants.price, trackStock: products.trackStock })
     .from(productVariants)
     .innerJoin(products, eq(products.id, productVariants.productId))
     .where(

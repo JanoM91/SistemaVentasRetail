@@ -20,6 +20,8 @@ const FLAG_LABELS: Record<string, string> = {
   variant_inactive: "Producto desactivado al sincronizar",
   late_sync: "Sincronización tardía",
   discount_unauthorized: "Descuento sin autorización",
+  customer_missing: "Cliente inexistente",
+  promotion_mismatch: "Promoción distinta a la vigente",
 };
 
 export default async function SalePage({ params }: { params: Promise<{ id: string }> }) {
@@ -91,6 +93,13 @@ export default async function SalePage({ params }: { params: Promise<{ id: strin
               </div>
             ))}
           </Card>
+          {d.promotions.some((p) => p.status === "applied") && (
+            <Card title="Promociones aplicadas">
+              {d.promotions.filter((p) => p.status === "applied").map((p, i) => (
+                <p key={i} className="border-b border-border py-2 text-sm last:border-0">{p.description}</p>
+              ))}
+            </Card>
+          )}
           {d.returns.length > 0 && (
             <Card title="Devoluciones">
               {d.returns.map((r) => (

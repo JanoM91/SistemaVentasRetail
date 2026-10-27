@@ -5,6 +5,8 @@ import { requirePermission } from "@/server/authz/guard";
 import { NotFoundError } from "@/server/errors";
 import { requireCompany, type ServiceContext } from "@/server/service-context";
 import { getDefaultWarehouse } from "@/server/modules/inventory/service";
+import { activeRules, exhaustedPromotionIds, priceListRules } from "@/server/modules/promotions/service";
+import type { PriceListRule, PromotionRule } from "@/lib/promotions";
 
 export type PosItem = {
   variantId: string;
@@ -32,6 +34,12 @@ export type PosCatalog = {
   categories: Array<{ id: string; name: string; color: string | null }>;
   paymentMethods: Array<{ id: string; code: string; name: string; kind: string; requiresReference: boolean; allowsChange: boolean }>;
   items: PosItem[];
+  /** Promociones vigentes (las de cupón se activan al validar el código en línea). */
+  promotions: PromotionRule[];
+  exhaustedPromotionIds: string[];
+  priceLists: PriceListRule[];
+  allowStacking: boolean;
+  timezone: string;
 };
 
 /**
@@ -65,9 +73,19 @@ export async function getPosCatalog(ctx: ServiceContext, branchId?: string | nul
       .where(and(eq(paymentMethods.companyId, company.id), eq(paymentMethods.isActive, true)))
       .orderBy(asc(paymentMethods.sortOrder)),
   ]);
+  const [{ rows: promoRows, rules }, lists] = await Promise.all([
+    ctx.enabledModules.has("promotions") ? activeRules(db, company.id) : Promise.resolve({ rows: [], rules: [] }),
+    priceListRules(db, company.id),
+  ]);
+  const exhausted = await exhaustedPromotionIds(db, promoRows, null);
   return {
     branchId: target,
     warehouseId: wh.id,
+    promotions: rules,
+    exhaustedPromotionIds: exhausted,
+    priceLists: lists,
+    allowStacking: company.settings?.promotions?.allowStacking ?? false,
+    timezone: company.timezone,
     generatedAt: new Date().toISOString(),
     currency: company.currency,
     categories: cats,

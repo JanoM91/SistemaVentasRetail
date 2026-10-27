@@ -1,11 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Alert, Badge, Card, Description, PageHeader, Table } from "@/components/ui";
+import { Alert, Card, Description, PageHeader, Table } from "@/components/ui";
 import { requirePagePermission } from "@/server/context";
 import { hasPermission } from "@/server/authz/guard";
 import { listCompanyModules } from "@/server/modules/companies/service";
 import { listDocumentSequences, listPaymentMethods, listSalesChannels, listTaxProfiles } from "@/server/modules/settings/queries";
 import { ModulesForm, SettingsForm } from "./forms";
+import { PaymentMethodsEditor, TaxesEditor } from "./catalog-editors";
+import { EDITABLE_PAYMENT_KINDS, PAYMENT_KIND_LABELS } from "@/server/modules/settings/service";
+import { db } from "@/server/db";
+import { products } from "@/server/db/schema";
+import { eq, sql } from "drizzle-orm";
 
 export const metadata: Metadata = { title: "Configuración" };
 
@@ -21,6 +26,7 @@ export default async function SettingsPage() {
     listSalesChannels(ctx),
     listDocumentSequences(ctx),
   ]);
+  const taxUse = await db.select({ taxProfileId: products.taxProfileId, n: sql<number>`count(*)`.mapWith(Number) }).from(products).where(eq(products.companyId, company.id)).groupBy(products.taxProfileId);
   return (
     <>
       <PageHeader title="Configuración" description={`Empresa activa: ${company.tradeName}. Cambia de empresa en la barra superior para configurar otra.`} />
@@ -49,37 +55,18 @@ export default async function SettingsPage() {
 
         <div className="grid gap-6 lg:grid-cols-2">
           <Card title="Impuestos">
-            <Table>
-              <thead><tr><th>Código</th><th>Nombre</th><th>Tasa</th><th>Incluido</th></tr></thead>
-              <tbody>
-                {taxes.map((t) => (
-                  <tr key={t.id}>
-                    <td className="font-mono text-xs">{t.code}</td>
-                    <td>{t.name} {t.isDefault && <Badge tone="info">Por defecto</Badge>}</td>
-                    <td>{(Number(t.rate) * 100).toFixed(2)} %</td>
-                    <td>{t.isIncludedInPrice ? "En precio" : "Más impuesto"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </Table>
-            <p className="mt-2 text-xs text-muted">Se configuran por defecto para México. La edición de impuestos llega con el catálogo (Fase 3).</p>
+            <TaxesEditor
+              canManage={canManage}
+              taxes={taxes.map((t) => ({ id: t.id, code: t.code, name: t.name, kind: t.kind, ratePercent: String(Math.round(Number(t.rate) * 1_000_000) / 10_000), isIncludedInPrice: t.isIncludedInPrice, isDefault: t.isDefault, products: taxUse.find((u) => u.taxProfileId === t.id)?.n ?? 0 }))}
+            />
           </Card>
 
           <Card title="Métodos de pago">
-            <Table>
-              <thead><tr><th>Código</th><th>Nombre</th><th>Tipo</th><th>Estado</th></tr></thead>
-              <tbody>
-                {payments.map((p) => (
-                  <tr key={p.id}>
-                    <td className="font-mono text-xs">{p.code}</td>
-                    <td>{p.name}</td>
-                    <td className="text-muted">{p.kind}{p.provider !== "manual" && ` · ${p.provider}`}</td>
-                    <td>{p.isActive ? <Badge tone="success">Activo</Badge> : <Badge>Inactivo</Badge>}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </Table>
-            <p className="mt-2 text-xs text-muted">Los adaptadores de terminal, QR y billeteras se activan en la Fase 4.</p>
+            <PaymentMethodsEditor
+              canManage={canManage}
+              kinds={EDITABLE_PAYMENT_KINDS.map((k) => ({ value: k, label: PAYMENT_KIND_LABELS[k] }))}
+              methods={payments.map((p) => ({ id: p.id, code: p.code, name: p.name, kind: p.kind, kindLabel: PAYMENT_KIND_LABELS[p.kind] ?? p.kind, requiresReference: p.requiresReference, isActive: p.isActive, sortOrder: p.sortOrder, system: p.kind === "customer_credit" || p.kind === "prepaid" }))}
+            />
           </Card>
 
           <Card title="Canales de venta">

@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, CloudOff, HandCoins, Pause, Printer, RefreshCw, Search, Star, Undo2, User, Wifi, X } from "lucide-react";
+import { ArrowLeft, CloudOff, HandCoins, Pause, Printer, RefreshCw, Search, Star, Tag, Undo2, User, Wifi, X } from "lucide-react";
 import { computeTotals, formatCents, normalizeQty } from "@/lib/money";
+import { evaluatePromotions, listPrice, type PromoResult } from "@/lib/promotions";
 import { localDb, nextClientSequence, uuidv7, type HeldCart, type RecentSale } from "@/lib/pos/local-db";
 import { CLIENT_HEADERS, outboxCounts, syncOutbox } from "@/lib/pos/sync";
 import { AbonoTicket, ReturnTicket, Ticket, type AbonoTicketData, type ReturnTicketData, type TicketData } from "@/components/pos/ticket";
@@ -60,6 +61,8 @@ export function PosApp({ initial }: { initial: PosInitial }) {
   const [returnTicket, setReturnTicket] = useState<ReturnTicketData | null>(null);
   /** Vale de un cambio en curso: se aplica como pago de los productos nuevos. */
   const [voucher, setVoucher] = useState<{ folio: string; balance: number } | null>(null);
+  const [coupons, setCoupons] = useState<Array<{ code: string; promotionId: string; promotionName: string }>>([]);
+  const [couponModal, setCouponModal] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
   /** UUID de la venta en cobro: se conserva entre reintentos para que el servidor no la duplique. */
   const saleIdRef = useRef<string | null>(null);
@@ -226,6 +229,7 @@ export function PosApp({ initial }: { initial: PosInitial }) {
             taxIncluded: it.taxIncluded,
             allowsDecimals: it.allowsDecimals,
             stock: it.stock,
+            categoryId: it.categoryId,
           },
         ];
       });
@@ -271,7 +275,21 @@ export function PosApp({ initial }: { initial: PosInitial }) {
     saleIdRef.current = null;
   }, [cart]);
 
-  const totals = useMemo(() => computeTotals(cart.map((l) => ({ unitPrice: l.unitPrice, quantity: l.quantity, discount: l.discount, taxRate: l.taxRate, taxIncluded: l.taxIncluded }))), [cart]);
+  // Precio según la lista del grupo del cliente y promociones vigentes (mismo motor que el servidor).
+  const priceList = useMemo(() => catalog?.priceLists?.find((l) => l.id === customer?.priceListId) ?? null, [catalog, customer]);
+  const pricedCart = useMemo(() => cart.map((l) => ({ ...l, unitPrice: listPrice(priceList, l.variantId, l.unitPrice) })), [cart, priceList]);
+  const promo: PromoResult = useMemo(() => {
+    if (!catalog?.promotions?.length || !pricedCart.length) return { lineDiscounts: {}, applied: [], total: 0 };
+    return evaluatePromotions(
+      pricedCart.map((l, i) => ({ key: String(i), variantId: l.variantId, productId: l.productId, categoryId: l.categoryId ?? null, quantity: l.quantity, unitPrice: l.unitPrice, manualDiscount: lineAmounts(l).discount, allowsDecimals: l.allowsDecimals })),
+      catalog.promotions,
+      { now: new Date(), timezone: catalog.timezone ?? initial.company.timezone, branchId: initial.branch.id, customerGroupId: customer?.groupId ?? null, couponPromotionIds: coupons.map((c) => c.promotionId), exhaustedPromotionIds: catalog.exhaustedPromotionIds ?? [], allowStacking: catalog.allowStacking ?? false },
+    );
+  }, [catalog, pricedCart, customer, coupons, initial.company.timezone, initial.branch.id]);
+  const promoByLine = useMemo(() => pricedCart.map((_, i) => promo.lineDiscounts[String(i)] ?? 0), [pricedCart, promo]);
+  /** Líneas con precio de lista y descuento total (manual + promoción). */
+  const effCart = useMemo(() => pricedCart.map((l, i) => ({ ...l, discount: lineAmounts(l).discount + promoByLine[i] })), [pricedCart, promoByLine]);
+  const totals = useMemo(() => computeTotals(effCart.map((l) => ({ unitPrice: l.unitPrice, quantity: l.quantity, discount: l.discount, taxRate: l.taxRate, taxIncluded: l.taxIncluded }))), [effCart]);
 
   const clearSale = () => {
     setCart([]);
@@ -279,6 +297,7 @@ export function PosApp({ initial }: { initial: PosInitial }) {
     setCustomer(null);
     setCustomerName(null);
     setVoucher(null);
+    setCoupons([]);
     setQuery("");
     focusSearch();
   };
@@ -323,7 +342,8 @@ export function PosApp({ initial }: { initial: PosInitial }) {
     registerName: register?.name ?? "",
     currency: cur,
     status: pending ? "pending" : "completed",
-    lines: cart.map((l) => {
+    promotions: promo.applied.map((p) => ({ description: p.description, amount: p.amount })),
+    lines: effCart.map((l) => {
       const a = lineAmounts(l);
       return { description: `${l.name}${l.variantName ? ` ${l.variantName}` : ""}`, sku: l.sku, quantity: l.quantity, unitPrice: l.unitPrice, discount: a.discount, total: a.total };
     }),
@@ -359,7 +379,8 @@ export function PosApp({ initial }: { initial: PosInitial }) {
       deviceId,
       customerId: customer?.id ?? undefined,
       customerName: customer ? undefined : (customerName ?? undefined),
-      lines: cart.map((l) => ({ variantId: l.variantId, quantity: l.quantity, unitPrice: l.unitPrice, discount: lineAmounts(l).discount })),
+      lines: pricedCart.map((l, i) => ({ variantId: l.variantId, quantity: l.quantity, unitPrice: l.unitPrice, discount: lineAmounts(l).discount, promoDiscount: promoByLine[i] })),
+      ...(coupons.length ? { couponCodes: coupons.map((c) => c.code) } : {}),
       payments: tenders.map((t) => ({ paymentMethodId: t.methodId, amount: t.amount, received: isCashM(methodOf(t.methodId)) ? (t.received ?? t.amount) : undefined, reference: t.reference || undefined })),
       ...(discountAuth ? { discountAuthorization: discountAuth } : {}),
       ...(creditAuth ? { creditAuthorization: creditAuth } : {}),
@@ -418,6 +439,7 @@ export function PosApp({ initial }: { initial: PosInitial }) {
         }
         if (json.code === "unauthenticated") setPayError("Tu sesión expiró. Inicia sesión en otra pestaña y vuelve a cobrar.");
         if (json.code === "credit_authorization_required") setForceAuth(true);
+        if (json.code === "promotions_changed") await loadCatalog();
         return;
       }
       const t = buildTicket(json.data.folio, paymentInfo, soldAt, false, json.data.credit);
@@ -440,6 +462,7 @@ export function PosApp({ initial }: { initial: PosInitial }) {
     setCustomer(null);
     setCustomerName(null);
     setVoucher(null);
+    setCoupons([]);
     localDb.recentTrim(50);
     if (navigator.onLine) runSync(true);
   };
@@ -603,12 +626,28 @@ export function PosApp({ initial }: { initial: PosInitial }) {
             </div>
           )}
           <div className="min-h-0 flex-1 overflow-auto">
-            <CartView lines={cart} currency={cur} onQty={setQty} onRemove={(i) => setCart((c) => c.filter((_, j) => j !== i))} onDiscount={(i) => setDiscountLine(i)} />
+            <CartView lines={effCart} promos={promoByLine} currency={cur} onQty={setQty} onRemove={(i) => setCart((c) => c.filter((_, j) => j !== i))} onDiscount={(i) => setDiscountLine(i)} />
           </div>
           <div className="space-y-1 border-t border-border p-3 text-sm">
             <Row label="Subtotal" value={formatCents(totals.subtotal, cur)} />
             <Row label="Impuestos" value={formatCents(totals.tax, cur)} />
             {totals.discount > 0 && <Row label="Descuentos" value={`−${formatCents(totals.discount, cur)}`} />}
+            {promo.applied.length > 0 && (
+              <ul className="rounded-app bg-success/10 px-2 py-1 text-xs text-success" data-testid="applied-promos">
+                {promo.applied.map((p) => <li key={p.promotionId}>{p.description}</li>)}
+              </ul>
+            )}
+            {online && cart.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1 pt-1">
+                {coupons.map((c) => (
+                  <span key={c.code} className="flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">
+                    <Tag className="size-3" /> {c.code}
+                    <button aria-label={`Quitar cupón ${c.code}`} onClick={() => setCoupons((x) => x.filter((y) => y.code !== c.code))}><X className="size-3" /></button>
+                  </span>
+                ))}
+                {coupons.length < 3 && <button className="text-xs text-primary underline" onClick={() => setCouponModal(true)} data-testid="add-coupon">Agregar cupón</button>}
+              </div>
+            )}
             <div className="flex items-baseline justify-between pt-1">
               <span className="text-base font-semibold">Total</span>
               <span className="text-3xl font-bold" data-testid="cart-total">{formatCents(totals.total, cur)}</span>
@@ -732,6 +771,16 @@ export function PosApp({ initial }: { initial: PosInitial }) {
           <p className="mt-3 text-xs text-muted">Las ventas rechazadas no se borran: quedan aquí y en el registro de sincronización del servidor para que un gerente las revise.</p>
         </Modal>
       )}
+      {couponModal && (
+        <CouponModal
+          onClose={() => { setCouponModal(false); focusSearch(); }}
+          onValid={(c) => {
+            setCoupons((x) => (x.some((y) => y.code === c.code) ? x : [...x, c]));
+            setCouponModal(false);
+            focusSearch();
+          }}
+        />
+      )}
       {customerModal && (
         <CustomerModal
           online={online}
@@ -853,4 +902,33 @@ function StatusPill({ status }: { status: RecentSale["status"] }) {
   const map = { synced: ["Sincronizada", "bg-success/15 text-success"], pending: ["Pendiente", "bg-warning/15 text-warning"], conflict: ["Con observaciones", "bg-warning/15 text-warning"], rejected: ["Rechazada", "bg-danger/15 text-danger"] } as const;
   const [label, cls] = map[status];
   return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${cls}`}>{label}</span>;
+}
+
+function CouponModal({ onValid, onClose }: { onValid: (c: { code: string; promotionId: string; promotionName: string }) => void; onClose: () => void }) {
+  const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  async function check() {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/v1/coupons?code=${encodeURIComponent(code.trim())}`, { credentials: "same-origin" });
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error);
+      onValid({ code: json.data.code, promotionId: json.data.promotionId, promotionName: json.data.promotionName });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Cupón no válido.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <Modal title="Cupón" onClose={onClose}>
+      <form onSubmit={(e) => { e.preventDefault(); if (code.trim()) check(); }} className="space-y-3">
+        <input autoFocus className="field font-mono uppercase" placeholder="Código del cupón" value={code} onChange={(e) => setCode(e.target.value)} aria-label="Código del cupón" data-testid="coupon-code" />
+        {error && <p className="rounded-app bg-danger-bg p-2 text-sm text-danger" role="alert">{error}</p>}
+        <button className="w-full rounded-xl bg-primary py-3 font-semibold text-primary-fg disabled:opacity-50" disabled={!code.trim() || busy}>{busy ? "Validando…" : "Aplicar cupón"}</button>
+      </form>
+    </Modal>
+  );
 }

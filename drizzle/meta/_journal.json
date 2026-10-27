@@ -43,6 +43,13 @@
       "when": 1793079765942,
       "tag": "0005_fase4c_devoluciones",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793112693745,
+      "tag": "0006_fase4d_promociones_precios",
+      "breakpoints": true
     }
   ]
 }

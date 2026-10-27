@@ -1,6 +1,6 @@
 # 09 · Roadmap
 
-Versión 0.1 · 2026-10-26
+Versión 0.2 · 2026-10-27
 
 Sin fechas: Jano no ha fijado una fecha de inicio ni dedicación del equipo. Las duraciones son estimaciones relativas para un equipo de dos personas con apoyo de IA y se revisan al cerrar cada fase.
 
@@ -9,7 +9,7 @@ Sin fechas: Jano no ha fijado una fecha de inicio ni dedicación del equipo. Las
 | 1 | Especificación | Documentos 01–09, ADRs | Hecha | Revisión y aprobación de Jano y Beto |
 | 2 | Base técnica | Auth, tenants, empresas, sucursales, almacenes, cajas, usuarios, roles, módulos, configuración regional, navegación, diseño base, bitácora, semillas, pruebas, despliegue | Hecha (esta entrega) | AC-01…AC-13 en verde; demo en Vercel |
 | 3 | Primer producto funcional (vertical slice) | Catálogo con variantes y códigos, inventario con libro inmutable, POS táctil, venta en efectivo, descuento de inventario, ticket, apertura/corte de caja, PWA offline básica, sincronización idempotente | Hecha (2026-10-26, ver doc 11) | Pendiente: una tienda piloto vende un día completo con y sin internet |
-| 4 | Operación comercial | Proveedores y compras, traspasos, devoluciones y cambios, pagos divididos, clientes y crédito, promociones y listas de precios, métodos de pago configurables | 4–6 semanas | Piloto reemplaza su sistema anterior |
+| 4 | Operación comercial | Proveedores y compras, traspasos, devoluciones y cambios, pagos divididos, clientes y crédito, promociones y listas de precios, métodos de pago configurables | Hecha (2026-10-27, ver doc 13) | Piloto reemplaza su sistema anterior |
 | 5 | Crecimiento y analítica | Pedidos omnicanal y ecommerce por adaptador, facturación opcional (PAC + sandbox), lealtad, reportes y dashboard, exportaciones, programación por correo, integraciones | 6–8 semanas | Primer cliente con sucursales múltiples y facturación |
 | 6 (después) | Endurecimiento y escala | RLS en Postgres, MFA, API pública documentada, marketplace de integraciones, apps nativas si el mercado lo pide | — | — |
 
@@ -21,6 +21,14 @@ Sin fechas: Jano no ha fijado una fecha de inicio ni dedicación del equipo. Las
 4. POS online (búsqueda, escaneo, carrito, efectivo, ticket).
 5. PWA y catálogo local; después ventas offline y cola de sincronización.
 6. Pruebas de sincronización con reenvío y conflictos.
+
+## Orden recomendado dentro de la Fase 5
+
+1. Reportes y dashboard (ventas, utilidad, inventario, clientes, promociones) con filtros por sucursal y periodo y exportación CSV/XLSX/PDF: cierra los dos criterios del prompt maestro que faltan.
+2. Facturación CFDI 4.0 por adaptador con modo sandbox identificado (factura de venta, global y desde ticket por el cliente).
+3. Pedidos omnicanal (WhatsApp, teléfono, ecommerce) con estados unificados y reserva de inventario.
+4. Lealtad (puntos o sellos) y saldo a favor del cliente.
+5. Integraciones por adaptador (pagos con terminal/QR, mensajería, ecommerce) sin datos simulados.
 
 ## Decisiones pendientes de Jano
 

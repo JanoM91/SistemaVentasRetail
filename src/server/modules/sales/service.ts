@@ -7,7 +7,9 @@ import {
   cashSessions,
   companies,
   customerCreditMovements,
+  customerGroups,
   customers,
+  promotionRedemptions,
   inventoryLedger,
   saleReturns,
   paymentMethods,
@@ -32,6 +34,8 @@ import { allowsNegative, getDefaultWarehouse, variantLabel } from "@/server/modu
 import { getAccessibleRegister, getOpenSession } from "@/server/modules/cash/service";
 import { bumpPurchaseStats, checkCreditSale, postCreditCharge, reverseCreditCharge } from "@/server/modules/customers/service";
 import { getStoreCredit, redeemStoreCredits, reverseRedemptions } from "@/server/modules/returns/service";
+import { activeRules, exhaustedPromotionIds, priceListRules, recordRedemptions, reverseRedemptionsForSale, validateCoupon } from "@/server/modules/promotions/service";
+import { evaluatePromotions, listPrice } from "@/lib/promotions";
 import { verifyAuthorizer } from "@/server/modules/auth/service";
 import { nextFolio } from "@/server/modules/sequences";
 
@@ -49,6 +53,8 @@ export const saleInputSchema = z.object({
   customerId: z.string().uuid().optional().nullable(),
   /** Autorización de gerente para vender a crédito fuera de límite o sin permiso. */
   creditAuthorization: z.object({ username: z.string(), password: z.string() }).optional(),
+  /** Cupones capturados (requieren conexión). */
+  couponCodes: z.array(z.string().trim().max(30)).max(3).optional(),
   notes: z.string().trim().max(500).optional().or(z.literal("")),
   lines: z
     .array(
@@ -57,6 +63,8 @@ export const saleInputSchema = z.object({
         quantity: z.number().positive().max(100_000),
         unitPrice: z.number().int().nonnegative(),
         discount: z.number().int().nonnegative().default(0),
+        /** Descuento por promociones calculado por el POS (el servidor lo recalcula y compara). */
+        promoDiscount: z.number().int().nonnegative().default(0),
       }),
     )
     .min(1, "La venta no tiene productos")
@@ -132,6 +140,19 @@ export async function createSale(ctx: ServiceContext, raw: unknown, opts: { orig
   if (!session) throw new ConflictError(`${reg.name} no tiene un turno abierto. Abre la caja antes de vender.`);
   if (offline && Date.now() - soldAt.getTime() > 72 * 3600_000) flag("late_sync", "La venta se sincronizó más de 72 h después de realizarse.");
 
+  // --- Cliente: lista de precios y promociones de su grupo
+  let customer: typeof customers.$inferSelect | null = null;
+  if (input.customerId) {
+    [customer] = await db.select().from(customers).where(and(eq(customers.id, input.customerId), eq(customers.companyId, company.id))).limit(1);
+    if (!customer) {
+      if (offline) flag("customer_missing", "El cliente de la venta ya no existe; se registró sin cliente.");
+      else throw new NotFoundError("El cliente");
+      customer = null;
+    }
+  }
+  const [group] = customer?.groupId ? await db.select().from(customerGroups).where(eq(customerGroups.id, customer.groupId)).limit(1) : [];
+  const priceList = group?.priceListId ? ((await priceListRules(db, company.id)).find((l) => l.id === group.priceListId) ?? null) : null;
+
   // --- Productos
   const variantIds = [...new Set(input.lines.map((l) => l.variantId))];
   const rows = await db
@@ -167,18 +188,53 @@ export async function createSale(ctx: ServiceContext, raw: unknown, opts: { orig
       if (offline) flag("variant_inactive", `${label} estaba desactivado al sincronizar.`);
       else throw new ConflictError(`${label} ya no está activo. Actualiza el catálogo del punto de venta.`);
     }
-    if (l.unitPrice !== r.v.price && !canEditPrice) {
-      if (offline) flag("price_changed", `${label}: cobrado ${l.unitPrice}, catálogo ${r.v.price}.`);
+    const expected = listPrice(priceList, r.v.id, r.v.price);
+    if (l.unitPrice !== expected && !canEditPrice) {
+      if (offline) flag("price_changed", `${label}: cobrado ${l.unitPrice}, catálogo ${expected}.`);
       else throw new DomainError("price_changed", `El precio de ${label} cambió. Actualiza el catálogo del punto de venta.`, 409);
     }
-    const amounts = computeLine({ unitPrice: l.unitPrice, quantity, discount: l.discount, taxRate: Number(r.tax.rate), taxIncluded: r.tax.isIncludedInPrice });
-    if (l.discount > 0 && amounts.gross > 0 && (l.discount / amounts.gross) * 100 > maxPct + 1e-9) {
+    const gross = computeLine({ unitPrice: l.unitPrice, quantity, discount: 0, taxRate: Number(r.tax.rate), taxIncluded: r.tax.isIncludedInPrice }).gross;
+    if (l.discount > 0 && gross > 0 && (l.discount / gross) * 100 > maxPct + 1e-9) {
       if (offline) flag("discount_unauthorized", `${label}: descuento mayor al ${maxPct} % permitido.`);
       else throw new ValidationError({ [`lines.${i}.discount`]: [`El descuento máximo permitido es ${maxPct} %.`] }, `El descuento máximo permitido es ${maxPct} %.`);
     }
-    return { line: l, r, label, quantity, amounts };
+    return { line: l, r, label, quantity };
   });
-  const totals = computeTotals(computed.map((c) => ({ unitPrice: c.line.unitPrice, quantity: c.quantity, discount: c.line.discount, taxRate: Number(c.r.tax.rate), taxIncluded: c.r.tax.isIncludedInPrice, amounts: c.amounts })));
+
+  // --- Promociones: el servidor recalcula con el mismo motor que el POS
+  const couponInfos: Array<Awaited<ReturnType<typeof validateCoupon>>> = [];
+  for (const code of [...new Set((input.couponCodes ?? []).map((c) => c.toUpperCase()).filter(Boolean))]) {
+    if (offline) {
+      flag("promotion_mismatch", `El cupón ${code} no se puede validar en una venta sin conexión.`);
+      continue;
+    }
+    couponInfos.push(await validateCoupon(ctx, code));
+  }
+  const { rows: promoRows, rules } = ctx.enabledModules.has("promotions") ? await activeRules(db, company.id) : { rows: [], rules: [] };
+  const promo = evaluatePromotions(
+    computed.map((c, i) => ({ key: String(i), variantId: c.r.v.id, productId: c.r.p.id, categoryId: c.r.p.categoryId, quantity: c.quantity, unitPrice: c.line.unitPrice, manualDiscount: c.line.discount, allowsDecimals: c.r.unit.allowsDecimals })),
+    rules,
+    {
+      now: soldAt,
+      timezone: company.timezone,
+      branchId: reg.branchId,
+      customerGroupId: customer?.groupId ?? null,
+      couponPromotionIds: couponInfos.map((c) => c.promotionId),
+      exhaustedPromotionIds: offline ? [] : await exhaustedPromotionIds(db, promoRows, customer?.id),
+      allowStacking: company.settings?.promotions?.allowStacking ?? false,
+    },
+  );
+  const promoMatches = computed.every((c, i) => (promo.lineDiscounts[String(i)] ?? 0) === c.line.promoDiscount);
+  if (!promoMatches) {
+    if (!offline) throw new DomainError("promotions_changed", "Las promociones cambiaron desde que se cargó el punto de venta. Se actualizaron; revisa el total y cobra de nuevo.", 409);
+    flag("promotion_mismatch", `Promociones del POS (${computed.reduce((a, c) => a + c.line.promoDiscount, 0)}) distintas a las vigentes (${promo.total}); se respetó lo cobrado.`);
+  }
+  const lines = computed.map((c, i) => {
+    const promoDiscount = promoMatches ? (promo.lineDiscounts[String(i)] ?? 0) : c.line.promoDiscount;
+    const amounts = computeLine({ unitPrice: c.line.unitPrice, quantity: c.quantity, discount: c.line.discount + promoDiscount, taxRate: Number(c.r.tax.rate), taxIncluded: c.r.tax.isIncludedInPrice });
+    return { ...c, promoDiscount, amounts };
+  });
+  const totals = computeTotals(lines.map((c) => ({ unitPrice: c.line.unitPrice, quantity: c.quantity, discount: c.amounts.discount, taxRate: Number(c.r.tax.rate), taxIncluded: c.r.tax.isIncludedInPrice, amounts: c.amounts })));
 
   // --- Pagos
   const methodIds = [...new Set(input.payments.map((p) => p.paymentMethodId))];
@@ -212,16 +268,7 @@ export async function createSale(ctx: ServiceContext, raw: unknown, opts: { orig
     if (credit.balance < v.amount) throw new ConflictError(`El vale ${credit.folio} solo tiene ${(credit.balance / 100).toFixed(2)} disponibles.`);
   }
 
-  // --- Cliente y crédito
-  let customer: typeof customers.$inferSelect | null = null;
-  if (input.customerId) {
-    [customer] = await db.select().from(customers).where(and(eq(customers.id, input.customerId), eq(customers.companyId, company.id))).limit(1);
-    if (!customer) {
-      if (offline) flag("customer_missing", "El cliente de la venta ya no existe; se registró sin cliente.");
-      else throw new NotFoundError("El cliente");
-      customer = null;
-    }
-  }
+  // --- Crédito
   const creditRows = paymentRows.filter((p) => p.m.kind === "customer_credit");
   const creditAmount = creditRows.reduce((a, p) => a + p.amount, 0);
   let creditAuthorizedBy: string | null = null;
@@ -241,7 +288,7 @@ export async function createSale(ctx: ServiceContext, raw: unknown, opts: { orig
       const folio = await nextFolio(tx, { tenantId: ctx.tenantId, companyId: company.id, branchId: reg.branchId, documentType: "sale" });
       const negativeOk = offline ? true : allowsNegative(ctx, warehouse);
       const lineCosts: Array<number | null> = [];
-      for (const c of computed) {
+      for (const c of lines) {
         if (!c.r.p.trackStock) {
           lineCosts.push(c.r.v.cost);
           continue;
@@ -264,7 +311,7 @@ export async function createSale(ctx: ServiceContext, raw: unknown, opts: { orig
         lineCosts.push(mv.unitCost ?? c.r.v.cost);
       }
       const costTotal = lineCosts.every((x) => x !== null)
-        ? computed.reduce((a, c, i) => a + roundHalfEven((lineCosts[i] as number) * c.quantity), 0)
+        ? lines.reduce((a, c, i) => a + roundHalfEven((lineCosts[i] as number) * c.quantity), 0)
         : null;
 
       const [sale] = await tx
@@ -303,7 +350,7 @@ export async function createSale(ctx: ServiceContext, raw: unknown, opts: { orig
         .returning();
 
       await tx.insert(saleLines).values(
-        computed.map((c, i) => ({
+        lines.map((c, i) => ({
           tenantId: ctx.tenantId,
           companyId: company.id,
           saleId: sale.id,
@@ -315,6 +362,7 @@ export async function createSale(ctx: ServiceContext, raw: unknown, opts: { orig
           unitPrice: c.line.unitPrice,
           listPrice: c.r.v.price,
           discountAmount: c.amounts.discount,
+          promotionDiscount: c.promoDiscount,
           taxRate: c.r.tax.rate,
           taxIncluded: c.r.tax.isIncludedInPrice,
           taxAmount: c.amounts.tax,
@@ -339,6 +387,13 @@ export async function createSale(ctx: ServiceContext, raw: unknown, opts: { orig
         })),
       );
 
+      if (promoMatches && promo.applied.length) {
+        const problems = await recordRedemptions(tx, ctx, { saleId: sale.id, customerId: customer?.id ?? null, applied: promo.applied, coupons: couponInfos, strict: !offline });
+        if (problems.length) {
+          for (const pr of problems) flag("promotion_mismatch", pr);
+          await tx.update(sales).set({ flags }).where(eq(sales.id, sale.id));
+        }
+      }
       if (voucherRows.length) await redeemStoreCredits(tx, ctx, sale.id, voucherRows.map((v) => ({ folio: v.reference!, amount: v.amount })));
       if (customer) await bumpPurchaseStats(tx, customer.id, 1, totals.total, soldAt);
       if (creditAmount > 0 && customer) {
@@ -358,7 +413,7 @@ export async function createSale(ctx: ServiceContext, raw: unknown, opts: { orig
           after: { folio: sale.folio, discount: totals.discount, total: totals.total },
         });
       }
-      const editedPrices = computed.filter((c) => c.line.unitPrice !== c.r.v.price && canEditPrice);
+      const editedPrices = computed.filter((c) => c.line.unitPrice !== listPrice(priceList, c.r.v.id, c.r.v.price) && canEditPrice);
       if (editedPrices.length) {
         await recordAudit(tx, { ...ctx.actor, branchId: reg.branchId }, {
           action: "pos.edit_price",
@@ -424,6 +479,7 @@ export async function cancelSale(ctx: ServiceContext, saleId: string, raw: unkno
       .returning();
     await tx.update(payments).set({ status: "refunded" }).where(eq(payments.saleId, saleId));
     await reverseRedemptions(tx, saleId);
+    await reverseRedemptionsForSale(tx, saleId);
     if (locked.customerId) {
       await bumpPurchaseStats(tx, locked.customerId, -1, locked.total, locked.soldAt);
       await reverseCreditCharge(tx, ctx, locked);
@@ -478,7 +534,7 @@ async function getSaleRow(ctx: ServiceContext, saleId: string) {
 
 export async function getSale(ctx: ServiceContext, saleId: string) {
   const sale = await getSaleRow(ctx, saleId);
-  const [lines, pays, meta, charge, rets] = await Promise.all([
+  const [lines, pays, meta, charge, rets, promos] = await Promise.all([
     db.select().from(saleLines).where(eq(saleLines.saleId, saleId)).orderBy(saleLines.lineNo),
     db
       .select({ p: payments, methodName: paymentMethods.name })
@@ -498,6 +554,7 @@ export async function getSale(ctx: ServiceContext, saleId: string) {
       ? db.select().from(customerCreditMovements).where(and(eq(customerCreditMovements.saleId, saleId), eq(customerCreditMovements.kind, "charge"))).limit(1).then((r) => r[0] ?? null)
       : Promise.resolve(null),
     db.select({ id: saleReturns.id, folio: saleReturns.folio, total: saleReturns.total, refundMethod: saleReturns.refundMethod, createdAt: saleReturns.createdAt }).from(saleReturns).where(eq(saleReturns.saleId, saleId)).orderBy(saleReturns.createdAt),
+    db.select({ promotionId: promotionRedemptions.promotionId, amount: promotionRedemptions.amount, description: promotionRedemptions.description, status: promotionRedemptions.status }).from(promotionRedemptions).where(eq(promotionRedemptions.saleId, saleId)),
   ]);
   const showCost = hasPermission(ctx, "reports.view_profit");
   return {
@@ -510,6 +567,7 @@ export async function getSale(ctx: ServiceContext, saleId: string) {
     sellerName: meta[0].sellerName,
     credit: charge ? { amount: charge.amount, balance: charge.balanceAfter, dueDate: charge.dueDate } : null,
     returns: rets,
+    promotions: promos,
     showCost,
   };
 }

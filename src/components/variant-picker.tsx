@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Search } from "lucide-react";
 import { formatCents } from "@/lib/money";
 
-export type PickedVariant = { id: string; sku: string; name: string; variantName: string; price: number; trackStock: boolean };
+export type PickedVariant = { id: string; productId?: string; sku: string; name: string; variantName: string; price: number; trackStock: boolean };
 
 /** Buscador de variantes por nombre, SKU o código de barras (acepta lector de códigos). */
 export function VariantPicker({ value, onChange, currency = "MXN", autoFocus }: { value: PickedVariant | null; onChange: (v: PickedVariant | null) => void; currency?: string; autoFocus?: boolean }) {

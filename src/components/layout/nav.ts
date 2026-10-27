@@ -3,7 +3,7 @@ import type { Permission } from "@/server/authz/permissions";
 export type NavItem = {
   href: string;
   label: string;
-  icon: "home" | "building" | "store" | "users" | "shield" | "settings" | "scroll" | "server" | "cart" | "receipt" | "wallet" | "package" | "boxes" | "truck" | "contact";
+  icon: "home" | "building" | "store" | "users" | "shield" | "settings" | "scroll" | "server" | "cart" | "receipt" | "wallet" | "package" | "boxes" | "truck" | "contact" | "percent";
   /** Sección del menú. */
   group?: "operacion" | "administracion";
   permission?: Permission;
@@ -18,6 +18,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/catalogo", label: "Catálogo", icon: "package", permission: "catalog.view", group: "operacion" },
   { href: "/inventario", label: "Inventario", icon: "boxes", permission: "inventory.view", group: "operacion" },
   { href: "/clientes", label: "Clientes", icon: "contact", permission: "customers.view", group: "operacion" },
+  { href: "/promociones", label: "Promociones", icon: "percent", permission: "promotions.view", group: "operacion" },
   { href: "/compras", label: "Compras", icon: "truck", permission: "purchases.view", group: "operacion" },
   { group: "administracion", href: "/empresas", label: "Empresas", icon: "building", permission: "companies.view" },
   { group: "administracion", href: "/sucursales", label: "Sucursales", icon: "store", permission: "branches.view" },

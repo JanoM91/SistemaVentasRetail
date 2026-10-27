@@ -16,6 +16,9 @@ export type PosCustomer = {
   phone: string | null;
   email: string | null;
   taxId: string | null;
+  groupId?: string | null;
+  groupName?: string | null;
+  priceListId?: string | null;
   credit: { limit: number; balance: number; available: number; overdue: number; blocked: boolean; days: number } | null;
   balance: number;
 };

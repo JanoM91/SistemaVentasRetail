@@ -2,14 +2,14 @@
 
 Plataforma SaaS de gestión comercial para negocios retail: punto de venta, inventario, clientes, promociones y analítica, multiempresa y preparada para operar sin internet. Producto de Exkalibur Consulting (nombre comercial pendiente).
 
-**Estado: Fase 4 en curso — bloques 4A (compras), 4B (clientes y crédito) y 4C (devoluciones y cambios) entregados.**
+**Estado: Fase 4 completa — operación comercial (compras, clientes y crédito, devoluciones, promociones). Siguiente: Fase 5 (reportes, facturación, pedidos, lealtad).**
 
 - **Fase 2 (base):** autenticación, cuentas (tenants), empresas, sucursales, almacenes, cajas, usuarios, roles y permisos, módulos activables, configuración y bitácora.
 - **Fase 3 (vender):** catálogo con variantes y códigos de barras, inventario con libro inmutable y costo promedio, caja con cortes X y Z, punto de venta táctil con ticket de 80 mm, venta **sin internet** con sincronización sin duplicados, app instalable (PWA).
 - **Fase 4A (comprar y mover):** proveedores, órdenes de compra con autorización, recepción parcial con flete prorrateado al costo, compra directa, devolución a proveedor con nota de crédito, cuentas por pagar, sugerencias de compra, traspasos entre sucursales con tránsito y conteo físico.
 - **Fase 4B (clientes y crédito):** ficha de clientes con datos fiscales, grupos y segmentos; cliente en la venta y alta rápida desde caja; cobro con varios métodos; venta a crédito con límite y autorización; abonos en caja que entran al corte; estado de cuenta y cuentas por cobrar por antigüedad.
 - **Fase 4C (devoluciones):** devoluciones parciales o totales con y sin ticket, cambios con vale, reembolso en efectivo, al medio original, a cuenta o con vale, política configurable.
-- **Siguiente (4D):** promociones, cupones y listas de precios. Ver `docs/12-estado-y-pendientes.md`.
+- **Fase 4D (promociones):** motor de promociones compartido POS/servidor con explicación en el ticket, cupones, listas de precios por grupo, métodos de pago e impuestos editables y revisión de ventas con observaciones. Reporte de la fase en `docs/13-entrega-fase-4.md`.
 
 ## Stack
 
@@ -55,7 +55,7 @@ Resultado esperado: en `http://localhost:3000/login` puedes entrar con las crede
 | `gerente` | `Gerente1234!` | Gerente (solo Sucursal Centro) | demo |
 | `cajero` | `Cajero1234!` | Cajero (solo Sucursal Centro) | demo |
 
-Las semillas cargan además un catálogo demo (bebidas, botanas, abarrotes, granel y una playera con tallas y colores) con existencias en «Sucursal Centro», y tres proveedores ligados a esos productos (Distribuidora del Golfo, Abarrotes Mayoreo Xalapa, Textiles del Centro) con los módulos de compras, devoluciones, promociones y crédito activos, y cuatro clientes (dos con crédito) en los grupos Mayoreo y Empleados. Para vender: entra como `cajero`, abre la caja en **Caja** y ve a **Punto de venta**; prueba escanear `7500000000011`. Para comprar: entra como `gerente` → **Compras** → **Sugerencias** o **Nueva orden**. Para fiar: en el POS agrega a «Tienda La Esquina» (crédito de $2,000) y cobra con «Crédito del cliente»; como `cajero` te pedirá autorización (`gerente`).
+Las semillas cargan además un catálogo demo (bebidas, botanas, abarrotes, granel y una playera con tallas y colores) con existencias en «Sucursal Centro», y tres proveedores ligados a esos productos (Distribuidora del Golfo, Abarrotes Mayoreo Xalapa, Textiles del Centro) con los módulos de compras, devoluciones, promociones y crédito activos, y cuatro clientes (dos con crédito) en los grupos Mayoreo y Empleados. Para vender: entra como `cajero`, abre la caja en **Caja** y ve a **Punto de venta**; prueba escanear `7500000000011`. Para comprar: entra como `gerente` → **Compras** → **Sugerencias** o **Nueva orden**. Para fiar: en el POS agrega a «Tienda La Esquina» (crédito de $2,000) y cobra con «Crédito del cliente»; como `cajero` te pedirá autorización (`gerente`). Promociones demo: 3x2 en galletas, jugo a $28 entre semana de 7 a 11 h, cupón `BIENVENIDA10` y lista Mayoreo (arroz y frijol) para el grupo Mayoreo.
 
 Estas contraseñas son públicas (el repositorio es público). **Nunca siembres un entorno real con ellas:** define `SEED_*_PASSWORD` propias antes de `npm run db:seed`.
 
@@ -68,7 +68,7 @@ Estas contraseñas son públicas (el repositorio es público). **Nunca siembres 
 | `npm run typecheck` | Verifica tipos con TypeScript. |
 | `npm run lint` | ESLint. |
 | `npm test` | Pruebas unitarias e integración (necesita `TEST_DATABASE_URL` en `.env.test`; la base se vacía en cada corrida). |
-| `npm run test:e2e` | Recorridos extremo a extremo con Playwright contra un servidor en marcha (`BASE_URL`, por defecto `http://localhost:3100`) y una base recién sembrada (`npm run db:reset`): POS en línea y sin conexión, sincronización y corte Z; administración; compras, traspasos y conteo; clientes, crédito y abonos; devoluciones y cambios. |
+| `npm run test:e2e` | Recorridos extremo a extremo con Playwright contra un servidor en marcha (`BASE_URL`, por defecto `http://localhost:3100`) y una base recién sembrada (`npm run db:reset`): POS en línea y sin conexión, sincronización y corte Z; administración; compras, traspasos y conteo; clientes, crédito y abonos; devoluciones y cambios; promociones, cupones y listas de precios. |
 | `npm run stock:verify` | Recalcula existencias desde el libro de inventario y las compara con los saldos (sale con código 1 si hay diferencias). |
 | `npm run check` | typecheck + lint + test + build. |
 | `npm run db:generate` | Genera una migración SQL a partir de los cambios en `src/server/db/schema`. |
@@ -133,6 +133,15 @@ Para usarlo como app: iPhone → Safari → Compartir → «Agregar a pantalla d
 - **Sin ticket:** solo con vale, a precio vigente, y con permiso o autorización.
 - **Política** (Configuración → Devoluciones): días permitidos (30 por defecto; después se requiere autorización), aceptar o no sin ticket, y si el reembolso en efectivo requiere autorización (sí por defecto). El efectivo devuelto se resta del corte.
 - Una venta con devoluciones ya no se puede cancelar.
+
+## Promociones y precios
+
+- **Promociones** (menú Promociones): porcentaje, monto por pieza, precio especial, 2x1/3x2, volumen, combos y descuentos al ticket; por producto o categoría, fechas, días, horario, sucursal, grupo de clientes, compra mínima y límites de uso. Se aplican solas en caja (también sin conexión) y el ticket explica cada ahorro.
+- **No se acumulan** por defecto: cada producto recibe la de mayor prioridad. Se cambia en Configuración.
+- **Cupones:** marca la promoción como «requiere cupón» y crea un código para todos (p. ej. `BIENVENIDA10`) o un lote de códigos de un solo uso. En caja: «Agregar cupón» (requiere conexión).
+- **Listas de precios:** Promociones → Listas de precios; asígnala a un grupo en Clientes → Grupos. Al elegir un cliente del grupo, el POS cambia los precios.
+- **Métodos de pago e impuestos:** Configuración (solo el dueño). Siempre debe quedar un efectivo activo.
+- **Ventas → Por revisar:** ventas sin conexión que entraron con observaciones y envíos rechazados; se marcan revisadas con nota.
 
 ## Seguridad (resumen)
 

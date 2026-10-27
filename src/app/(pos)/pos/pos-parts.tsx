@@ -18,6 +18,8 @@ export type CartLine = {
   taxIncluded: boolean;
   allowsDecimals: boolean;
   stock: number | null;
+  /** Para promociones por categoría. */
+  categoryId?: string | null;
 };
 
 export const lineAmounts = (l: CartLine) => computeLine({ unitPrice: l.unitPrice, quantity: l.quantity, discount: l.discount, taxRate: l.taxRate, taxIncluded: l.taxIncluded });
@@ -111,8 +113,11 @@ export function CartView({
   onQty,
   onRemove,
   onDiscount,
+  promos = [],
 }: {
   lines: CartLine[];
+  /** Descuento por promoción de cada línea (mismo orden). `lines` ya trae el descuento total. */
+  promos?: number[];
   currency: string;
   onQty: (i: number, q: number) => void;
   onRemove: (i: number) => void;
@@ -132,7 +137,8 @@ export function CartView({
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium">{l.name}{l.variantName && <span className="text-muted"> · {l.variantName}</span>}</p>
                 <p className="text-xs text-muted">{formatCents(l.unitPrice, currency)} c/u{over && <span className="text-warning"> · solo hay {formatQty(l.stock!)}</span>}</p>
-                {l.discount > 0 && <p className="text-xs text-success">Descuento −{formatCents(a.discount, currency)}</p>}
+                {a.discount - (promos[i] ?? 0) > 0 && <p className="text-xs text-success">Descuento −{formatCents(a.discount - (promos[i] ?? 0), currency)}</p>}
+                {(promos[i] ?? 0) > 0 && <p className="text-xs text-success" data-testid="line-promo">Promoción −{formatCents(promos[i], currency)}</p>}
               </div>
               <p className="shrink-0 text-sm font-semibold">{formatCents(a.total, currency)}</p>
             </div>

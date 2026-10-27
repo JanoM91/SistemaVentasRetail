@@ -101,7 +101,7 @@ export async function getAging(conn: DbOrTx, customerId: string, today: string) 
 
 // ---------------------------------------------------------------- Grupos
 
-export const groupSchema = z.object({ name: z.string().trim().min(2, "Escribe un nombre").max(60), description: opt(200) });
+export const groupSchema = z.object({ name: z.string().trim().min(2, "Escribe un nombre").max(60), description: opt(200), priceListId: z.string().uuid().optional().or(z.literal("")).nullable() });
 
 export async function listGroups(ctx: ServiceContext) {
   requirePermission(ctx, "customers.view");
@@ -120,12 +120,12 @@ export async function saveGroup(ctx: ServiceContext, id: string | null, raw: unk
   try {
     return await db.transaction(async (tx) => {
       if (id) {
-        const [g] = await tx.update(customerGroups).set({ name: input.name, description: input.description || null, updatedAt: new Date(), updatedBy: ctx.userId }).where(and(eq(customerGroups.id, id), eq(customerGroups.companyId, company.id))).returning();
+        const [g] = await tx.update(customerGroups).set({ name: input.name, description: input.description || null, priceListId: input.priceListId || null, updatedAt: new Date(), updatedBy: ctx.userId }).where(and(eq(customerGroups.id, id), eq(customerGroups.companyId, company.id))).returning();
         if (!g) throw new NotFoundError("El grupo");
         await recordAudit(tx, ctx.actor, { action: "customers.group_update", entity: "customer_group", entityId: g.id, after: { name: g.name } });
         return g;
       }
-      const [g] = await tx.insert(customerGroups).values({ tenantId: ctx.tenantId, companyId: company.id, name: input.name, description: input.description || null, createdBy: ctx.userId, updatedBy: ctx.userId }).returning();
+      const [g] = await tx.insert(customerGroups).values({ tenantId: ctx.tenantId, companyId: company.id, name: input.name, description: input.description || null, priceListId: input.priceListId || null, createdBy: ctx.userId, updatedBy: ctx.userId }).returning();
       await recordAudit(tx, ctx.actor, { action: "customers.group_create", entity: "customer_group", entityId: g.id, after: { name: g.name } });
       return g;
     });
@@ -360,6 +360,7 @@ export async function getPosCustomer(ctx: ServiceContext, id: string) {
 }
 
 async function posCustomerView(c: typeof customers.$inferSelect, tz: string) {
+  const [group] = c.groupId ? await db.select({ priceListId: customerGroups.priceListId, name: customerGroups.name }).from(customerGroups).where(eq(customerGroups.id, c.groupId)).limit(1) : [];
   const aging = c.creditLimit !== null || c.creditBalance !== 0 ? await getAging(db, c.id, localDate(new Date(), tz)) : null;
   return {
     id: c.id,
@@ -368,6 +369,9 @@ async function posCustomerView(c: typeof customers.$inferSelect, tz: string) {
     phone: c.phone,
     email: c.email,
     taxId: c.taxId,
+    groupId: c.groupId,
+    groupName: group?.name ?? null,
+    priceListId: group?.priceListId ?? null,
     credit:
       c.creditLimit === null
         ? null
