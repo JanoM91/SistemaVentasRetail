@@ -134,6 +134,8 @@ export async function provisionCompany(
       { code: "TDC", name: "Tarjeta de crédito", kind: "card_credit" as const, requiresReference: true, sortOrder: 2 },
       { code: "TDD", name: "Tarjeta de débito", kind: "card_debit" as const, requiresReference: true, sortOrder: 3 },
       { code: "TRANSFER", name: "Transferencia", kind: "transfer" as const, requiresReference: true, sortOrder: 4 },
+      // Solo se ofrece en el POS cuando el cliente tiene crédito autorizado.
+      { code: "CREDITO", name: "Crédito del cliente", kind: "customer_credit" as const, sortOrder: 9 },
     ].map((m) => ({ ...m, tenantId: input.tenantId, companyId: company.id, provider: "manual", createdBy: by, updatedBy: by })),
   );
 

@@ -37,6 +37,11 @@ export default async function PosPage() {
       discount: hasPermission(ctx, "pos.discount"),
       editPrice: hasPermission(ctx, "pos.edit_price"),
       openCash: hasPermission(ctx, "cash.open"),
+      customers: hasPermission(ctx, "customers.view"),
+      createCustomers: hasPermission(ctx, "customers.manage"),
+      creditSale: hasPermission(ctx, "pos.credit_sale"),
+      creditModule: ctx.enabledModules.has("credit"),
+      abono: ctx.enabledModules.has("credit") && hasPermission(ctx, "credit.view"),
     },
     loadedAt: new Date().toISOString(),
   };

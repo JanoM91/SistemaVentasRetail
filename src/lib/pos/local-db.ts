@@ -32,7 +32,7 @@ export type RecentSale = {
   ticket: unknown;
 };
 
-export type HeldCart = { id: string; label: string; createdAt: string; registerId: string; lines: unknown[] };
+export type HeldCart = { id: string; label: string; createdAt: string; registerId: string; lines: unknown[]; customer?: unknown; customerName?: string | null };
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 

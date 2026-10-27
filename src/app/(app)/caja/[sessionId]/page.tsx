@@ -58,6 +58,14 @@ export default async function SessionPage({ params }: { params: Promise<{ sessio
               {summary.byMethod.map((m) => (
                 <tr key={m.methodId}><td>{m.name}</td><td className="text-right text-muted">{m.count}</td><td className="text-right font-medium">{formatCents(m.amount, cur)}</td></tr>
               ))}
+                          {(summary.creditPayments ?? []).length > 0 && (
+                <>
+                  <tr><td colSpan={3} className="pt-4 text-xs font-medium uppercase tracking-wide text-muted">Abonos de clientes</td></tr>
+                  {summary.creditPayments!.map((m) => (
+                    <tr key={`ab-${m.methodId}`}><td>{m.name}</td><td className="text-right text-muted">{m.count}</td><td className="text-right font-medium">{formatCents(m.amount, cur)}</td></tr>
+                  ))}
+                </>
+              )}
             </tbody>
           </Table>
         </Card>
@@ -66,6 +74,7 @@ export default async function SessionPage({ params }: { params: Promise<{ sessio
             <tbody>
               <tr><td>Fondo inicial</td><td className="text-right">{formatCents(s.openingAmount, cur)}</td></tr>
               <tr><td>+ Ventas en efectivo</td><td className="text-right">{formatCents(summary.cashSales, cur)}</td></tr>
+              {!!summary.cashCreditPayments && <tr><td>+ Abonos en efectivo</td><td className="text-right">{formatCents(summary.cashCreditPayments, cur)}</td></tr>}
               <tr><td>+ Depósitos</td><td className="text-right">{formatCents(summary.deposits, cur)}</td></tr>
               <tr><td>− Retiros</td><td className="text-right">{formatCents(summary.withdrawals, cur)}</td></tr>
               {(showExpected || !open) && <tr><td className="font-semibold">Efectivo esperado</td><td className="text-right font-semibold">{formatCents(summary.expectedCash, cur)}</td></tr>}

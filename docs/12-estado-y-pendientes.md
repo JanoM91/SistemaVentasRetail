@@ -1,6 +1,6 @@
 # 12 · Estado del producto y pendientes
 
-Fecha: 2026-10-27 (actualizado con el bloque 4A) · Base: prompt maestro (15 módulos y 18 criterios de aceptación) contra lo entregado en las Fases 1–3 y 4A.
+Fecha: 2026-10-27 (actualizado con los bloques 4A y 4B) · Base: prompt maestro (15 módulos y 18 criterios de aceptación) contra lo entregado en las Fases 1–3, 4A y 4B.
 
 ## 1. Dónde vive el proyecto
 
@@ -21,8 +21,8 @@ Fecha: 2026-10-27 (actualizado con el bloque 4A) · Base: prompt maestro (15 mó
 | 4 | El inventario se descuenta automáticamente | Cumplido (F3) |
 | 5 | Ventas sin internet sincronizadas después | Cumplido (F3) |
 | 6 | Promociones configurables | **Pendiente** (hoy solo descuento manual por línea) |
-| 7 | Pagos divididos | **Parcial**: el modelo y el servidor ya los aceptan; falta la pantalla de cobro |
-| 8 | Clientes e historial | **Pendiente** |
+| 7 | Pagos divididos | Cumplido (4B) |
+| 8 | Clientes e historial | Cumplido (4B) |
 | 9 | Devoluciones y cambios | **Pendiente** (hoy solo cancelación dentro del turno) |
 | 10 | Control de cajas y cortes | Cumplido (F3) |
 | 11 | Costos, margen y utilidad | **Parcial**: por venta y en el inventario; falta el reporte |
@@ -32,9 +32,9 @@ Fecha: 2026-10-27 (actualizado con el bloque 4A) · Base: prompt maestro (15 mó
 | 15 | Sin botones principales sin función | Cumplido en lo entregado |
 | 16 | Sin datos falsos para simular integraciones | Cumplido (aún no hay integraciones) |
 | 17 | Datos de prueba, documentación, credenciales demo | Cumplido |
-| 18 | Pruebas unitarias, de integración y de flujos críticos | Cumplido (71 + 3 recorridos E2E) |
+| 18 | Pruebas unitarias, de integración y de flujos críticos | Cumplido (81 + 4 recorridos E2E) |
 
-Resultado: 12 cumplidos, 2 parciales, 4 pendientes.
+Resultado: 14 cumplidos, 1 parcial (utilidad: falta reporte), 3 pendientes (promociones, devoluciones, reportes).
 
 ## 3. Módulos
 
@@ -45,10 +45,10 @@ Resultado: 12 cumplidos, 2 parciales, 4 pendientes.
 | 3 Catálogo | Simples y variantes, códigos múltiples, categorías, marcas, unidades, favoritos, proveedor principal y último costo (automático al comprar) | Imágenes, importación desde archivo, edición manual de proveedores por producto, relacionados/sustitutos, peso y dimensiones |
 | 4 Inventario y costos | Libro inmutable, costo promedio, ajustes, mermas, kardex, alertas, valor, traspasos con tránsito, conteo físico a ciegas, sugerencias de compra | Reservas, lotes/caducidad/series, FIFO, conversiones de unidad, rotación |
 | 5 Compras y proveedores | Proveedores, órdenes (borrador → enviada → parcial → cerrada), recepción con flete prorrateado, compra directa, devolución con nota de crédito, cuentas por pagar con pagos parciales, historial de costos | Varias facturas por recepción, anticipos, conversión de unidades de compra (caja → pieza), importación XML de CFDI de proveedor |
-| 6 Punto de venta | Venta táctil, escaneo, variantes, granel, descuentos autorizados, en espera, ticket, cancelación, cortes | Cotizaciones, venta a crédito, pago dividido en pantalla, asociar cliente, envío de ticket por WhatsApp/correo |
+| 6 Punto de venta | Venta táctil, escaneo, variantes, granel, descuentos autorizados, en espera, ticket, cancelación, cortes, cliente en la venta, alta rápida de cliente, pago dividido, venta a crédito con autorización, abonos | Cotizaciones, envío de ticket por WhatsApp/correo |
 | 7 Canales y pedidos | — | Todo |
-| 8 Métodos de pago | Efectivo, tarjeta y transferencia con referencia manual | Pago dividido en pantalla, terminal integrada, QR, tarjetas de regalo, saldo, puntos |
-| 9 Clientes y segmentos | — | Todo |
+| 8 Métodos de pago | Efectivo, tarjeta y transferencia con referencia manual, crédito del cliente, pago dividido | Terminal integrada, QR, tarjetas de regalo, saldo a favor, puntos; edición de métodos (4D) |
+| 9 Clientes y segmentos | Ficha con datos fiscales y dirección, grupos, segmentos (nuevos, frecuentes, en riesgo, sin compras, con saldo, vencidos, aceptan promociones), consentimiento, historial, exportación CSV, crédito y cuentas por cobrar | Lealtad/puntos (Fase 5), fusión de duplicados, campañas |
 | 10 Promociones y precios | Descuento manual con tope | Motor de promociones, cupones, listas de precios |
 | 11 Devoluciones | Cancelación en el turno | Devolución total/parcial, cambios, crédito en tienda |
 | 12 Facturación electrónica | — | Adaptador CFDI por PAC + sandbox |
@@ -58,6 +58,6 @@ Resultado: 12 cumplidos, 2 parciales, 4 pendientes.
 
 ## 4. Roadmap restante
 
-- **Fase 4 · Operación comercial:** ~~4A compras, proveedores, traspasos, conteos y sugerencias~~ (entregado) · 4B clientes, crédito y pagos divididos · 4C devoluciones y cambios · 4D promociones, cupones, listas de precios, métodos de pago e impuestos editables y revisión de ventas con observaciones.
+- **Fase 4 · Operación comercial:** ~~4A compras, proveedores, traspasos, conteos y sugerencias~~ (entregado) · ~~4B clientes, crédito y pagos divididos~~ (entregado) · 4C devoluciones y cambios · 4D promociones, cupones, listas de precios, métodos de pago e impuestos editables y revisión de ventas con observaciones.
 - **Fase 5 · Crecimiento y analítica:** reportes y dashboard, exportaciones, facturación CFDI, pedidos omnicanal y ecommerce, lealtad, integraciones.
 - **Transversal:** despliegue (Supabase + Vercel), primer cliente piloto, impresión térmica directa, carrito deslizable en celular.

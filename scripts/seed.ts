@@ -21,6 +21,7 @@ import {
   categories,
   companies,
   companyModules,
+  customers,
   products,
   productSuppliers,
   productVariants,
@@ -40,6 +41,7 @@ import { SYSTEM_ROLES } from "../src/server/authz/system-roles";
 import { hashPassword } from "../src/server/auth/password";
 import { provisionCompany } from "../src/server/modules/companies/provision";
 import { createSupplier } from "../src/server/modules/purchasing/service";
+import { createCustomer, saveGroup, setCreditTerms } from "../src/server/modules/customers/service";
 
 const DEMO = {
   superadmin: { username: "superadmin", password: process.env.SEED_SUPERADMIN_PASSWORD ?? "Admin1234!" },
@@ -264,6 +266,31 @@ async function seedDemoPurchasing() {
   console.log(`✔ Compras demo: módulos activos y 3 proveedores ligados a ${seen.size} productos`);
 }
 
+/** Clientes de demostración (idempotente): grupos, clientes con y sin crédito. */
+async function seedDemoCustomers() {
+  const [tenant] = await db.select().from(tenants).where(eq(tenants.slug, "demo")).limit(1);
+  if (!tenant) return;
+  const [company] = await db.select().from(companies).where(eq(companies.tenantId, tenant.id)).limit(1);
+  const [already] = await db.select({ id: customers.id }).from(customers).where(eq(customers.companyId, company.id)).limit(1);
+  if (already) {
+    console.log("· Clientes demo ya existen");
+    return;
+  }
+  const [owner] = await db.select().from(users).where(and(eq(users.tenantId, tenant.id), eq(users.username, DEMO.owner.username))).limit(1);
+  const [centro] = await db.select().from(branches).where(and(eq(branches.companyId, company.id), eq(branches.code, "CENTRO"))).limit(1);
+  const authz = await resolveAuthz({ userId: owner.id, tenantId: tenant.id, isSuperadmin: false, requestedCompanyId: company.id, requestedBranchId: centro.id });
+  const ctx = { ...authz, actor: { tenantId: tenant.id, userId: owner.id, companyId: company.id, branchId: centro.id, ip: null, userAgent: "seed", deviceId: "seed" } };
+  const mayoreo = await saveGroup(ctx, null, { name: "Mayoreo", description: "Negocios que compran para revender" });
+  await saveGroup(ctx, null, { name: "Empleados" });
+  const esquina = await createCustomer(ctx, { name: "Tienda La Esquina", phone: "2281112233", groupId: mayoreo.id, notes: "Paga los viernes" });
+  await setCreditTerms(ctx, esquina.id, { enabled: "on", creditLimit: "2000", creditDays: 15 });
+  const jarocho = await createCustomer(ctx, { name: "Restaurante El Jarocho", phone: "2284445566", email: "compras@eljarocho.example", groupId: mayoreo.id, taxId: "REJ200315AB1", legalName: "Restaurante El Jarocho SA de CV", taxRegime: "601", cfdiUse: "G03", taxPostalCode: "91000" });
+  await setCreditTerms(ctx, jarocho.id, { enabled: "on", creditLimit: "5000", creditDays: 30 });
+  await createCustomer(ctx, { name: "María Fernández", phone: "2287778899", marketingConsent: "on" });
+  await createCustomer(ctx, { name: "Luis Hernández", email: "luis.h@example.com" });
+  console.log("✔ Clientes demo: 4 clientes (2 con crédito) y 2 grupos");
+}
+
 async function main() {
   await seedSystemRoles();
   await seedCurrencies();
@@ -271,6 +298,7 @@ async function main() {
   await seedDemo();
   await seedDemoCatalog();
   await seedDemoPurchasing();
+  await seedDemoCustomers();
   console.log("\nCredenciales de demostración:");
   for (const [k, v] of Object.entries(DEMO)) console.log(`  ${k.padEnd(10)} ${v.username} / ${v.password}`);
 }

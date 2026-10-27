@@ -44,10 +44,10 @@ Se entrega en cuatro bloques (4A compras e inventario avanzado · 4B clientes, c
 | AC-34b | Conteo físico completo o por categoría, a ciegas para quien cuenta, con diferencia contra la existencia del momento de captura y ajuste autorizado. | I: `phase4a.test.ts` › conteo; E: `compras.mjs` | Cubierto (4A) |
 | AC-34c | Sugerencias de compra por punto de reorden, venta de 30 días, lo ya pedido y tiempo de entrega; generan órdenes en borrador por proveedor. | I: `phase4a.test.ts` › sugerencias; E: `compras.mjs` | Cubierto (4A) |
 | AC-30 | Promociones configurables con explicación en el ticket. | — | Pendiente (4D) |
-| AC-31 | Pagos divididos en el punto de venta. | — | Pendiente (4B) |
-| AC-32 | Clientes con historial de compras. | — | Pendiente (4B) |
+| AC-31 | Pagos divididos en el punto de venta (varios métodos; solo el efectivo da cambio; el corte separa por método). | I: `phase4b.test.ts` › pago dividido; E: `clientes.mjs` (tarjeta + crédito) | Cubierto (4B) |
+| AC-32 | Clientes con datos fiscales, grupos, segmentos, consentimiento de marketing, historial de compras y productos frecuentes; alta rápida desde caja. | I: `phase4b.test.ts` › alta de clientes, cancelación e historial; E: `clientes.mjs` | Cubierto (4B) |
 | AC-33 | Devoluciones y cambios con o sin retorno a inventario. | — | Pendiente (4C) |
-| AC-35 | Ventas a crédito con límite y abonos. | — | Pendiente (4B) |
+| AC-35 | Ventas a crédito con límite, días y bloqueo; autorización de gerente fuera de límite o con vencidos; estado de cuenta inmutable con antigüedad PEPS; abonos en caja que entran al corte; cuentas por cobrar por antigüedad. | U/I: `phase4b.test.ts` (antigüedad, crédito, abonos, offline); E: `clientes.mjs` | Cubierto (4B) |
 
 ## Fase 5
 

@@ -2,12 +2,13 @@
 
 Plataforma SaaS de gestión comercial para negocios retail: punto de venta, inventario, clientes, promociones y analítica, multiempresa y preparada para operar sin internet. Producto de Exkalibur Consulting (nombre comercial pendiente).
 
-**Estado: Fase 4 en curso — bloque 4A (compras e inventario avanzado) entregado.**
+**Estado: Fase 4 en curso — bloques 4A (compras e inventario avanzado) y 4B (clientes, crédito y pagos divididos) entregados.**
 
 - **Fase 2 (base):** autenticación, cuentas (tenants), empresas, sucursales, almacenes, cajas, usuarios, roles y permisos, módulos activables, configuración y bitácora.
 - **Fase 3 (vender):** catálogo con variantes y códigos de barras, inventario con libro inmutable y costo promedio, caja con cortes X y Z, punto de venta táctil con ticket de 80 mm, venta **sin internet** con sincronización sin duplicados, app instalable (PWA).
 - **Fase 4A (comprar y mover):** proveedores, órdenes de compra con autorización, recepción parcial con flete prorrateado al costo, compra directa, devolución a proveedor con nota de crédito, cuentas por pagar, sugerencias de compra, traspasos entre sucursales con tránsito y conteo físico.
-- **Siguiente (4B–4D):** clientes, crédito y pagos divididos; devoluciones y cambios; promociones y listas de precios. Ver `docs/12-estado-y-pendientes.md`.
+- **Fase 4B (clientes y crédito):** ficha de clientes con datos fiscales, grupos y segmentos; cliente en la venta y alta rápida desde caja; cobro con varios métodos; venta a crédito con límite y autorización; abonos en caja que entran al corte; estado de cuenta y cuentas por cobrar por antigüedad.
+- **Siguiente (4C–4D):** devoluciones y cambios; promociones y listas de precios. Ver `docs/12-estado-y-pendientes.md`.
 
 ## Stack
 
@@ -53,7 +54,7 @@ Resultado esperado: en `http://localhost:3000/login` puedes entrar con las crede
 | `gerente` | `Gerente1234!` | Gerente (solo Sucursal Centro) | demo |
 | `cajero` | `Cajero1234!` | Cajero (solo Sucursal Centro) | demo |
 
-Las semillas cargan además un catálogo demo (bebidas, botanas, abarrotes, granel y una playera con tallas y colores) con existencias en «Sucursal Centro», y tres proveedores ligados a esos productos (Distribuidora del Golfo, Abarrotes Mayoreo Xalapa, Textiles del Centro) con los módulos de compras, devoluciones, promociones y crédito activos. Para vender: entra como `cajero`, abre la caja en **Caja** y ve a **Punto de venta**; prueba escanear `7500000000011`. Para comprar: entra como `gerente` → **Compras** → **Sugerencias** o **Nueva orden**.
+Las semillas cargan además un catálogo demo (bebidas, botanas, abarrotes, granel y una playera con tallas y colores) con existencias en «Sucursal Centro», y tres proveedores ligados a esos productos (Distribuidora del Golfo, Abarrotes Mayoreo Xalapa, Textiles del Centro) con los módulos de compras, devoluciones, promociones y crédito activos, y cuatro clientes (dos con crédito) en los grupos Mayoreo y Empleados. Para vender: entra como `cajero`, abre la caja en **Caja** y ve a **Punto de venta**; prueba escanear `7500000000011`. Para comprar: entra como `gerente` → **Compras** → **Sugerencias** o **Nueva orden**. Para fiar: en el POS agrega a «Tienda La Esquina» (crédito de $2,000) y cobra con «Crédito del cliente»; como `cajero` te pedirá autorización (`gerente`).
 
 Estas contraseñas son públicas (el repositorio es público). **Nunca siembres un entorno real con ellas:** define `SEED_*_PASSWORD` propias antes de `npm run db:seed`.
 
@@ -66,7 +67,7 @@ Estas contraseñas son públicas (el repositorio es público). **Nunca siembres 
 | `npm run typecheck` | Verifica tipos con TypeScript. |
 | `npm run lint` | ESLint. |
 | `npm test` | Pruebas unitarias e integración (necesita `TEST_DATABASE_URL` en `.env.test`; la base se vacía en cada corrida). |
-| `npm run test:e2e` | Recorridos extremo a extremo con Playwright contra un servidor en marcha (`BASE_URL`, por defecto `http://localhost:3100`) y una base recién sembrada (`npm run db:reset`): POS en línea y sin conexión, sincronización y corte Z; administración; compras, traspasos y conteo. |
+| `npm run test:e2e` | Recorridos extremo a extremo con Playwright contra un servidor en marcha (`BASE_URL`, por defecto `http://localhost:3100`) y una base recién sembrada (`npm run db:reset`): POS en línea y sin conexión, sincronización y corte Z; administración; compras, traspasos y conteo; clientes, crédito y abonos. |
 | `npm run stock:verify` | Recalcula existencias desde el libro de inventario y las compara con los saldos (sale con código 1 si hay diferencias). |
 | `npm run check` | typecheck + lint + test + build. |
 | `npm run db:generate` | Genera una migración SQL a partir de los cambios en `src/server/db/schema`. |
@@ -114,6 +115,14 @@ Para usarlo como app: iPhone → Safari → Compartir → «Agregar a pantalla d
 - **Cuentas por pagar:** cada recepción crea su cuenta con vencimiento según los días de crédito del proveedor; admite pagos parciales y las devoluciones se abonan como nota de crédito.
 - **Traspasos:** la mercancía sale del origen al enviar y queda en tránsito; solo la sucursal destino confirma lo que llegó y los faltantes quedan en la bitácora.
 - **Conteo físico:** quien cuenta no ve la existencia del sistema; el supervisor revisa diferencias y las aplica como ajuste. Se puede seguir vendiendo durante el conteo.
+
+## Clientes y crédito
+
+- **En caja:** «Agregar cliente» busca por nombre, teléfono, correo o RFC, o da de alta uno nuevo con nombre y teléfono. Sin internet solo se puede escribir el nombre para el ticket.
+- **Cobro dividido:** se agregan pagos parciales (p. ej. $200 en tarjeta y el resto en efectivo); solo el efectivo da cambio.
+- **Venta a crédito:** aparece «Crédito del cliente» si el cliente tiene crédito autorizado. Pide autorización de gerente si el vendedor no tiene el permiso «Vender a crédito», si excede el disponible o si el cliente tiene saldo vencido. El ticket incluye línea de firma. Sin internet no se vende a crédito.
+- **Abonos:** botón «Abono» en el punto de venta; el efectivo entra al corte del turno. Transferencias y tarjeta también se registran en la ficha del cliente.
+- **Estado de cuenta:** inmutable; los abonos se aplican a lo más antiguo y **Clientes → Por cobrar** muestra la antigüedad (al corriente, 1–30, 31–60, 61–90, +90 días).
 
 ## Seguridad (resumen)
 

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Alert, Badge, ButtonLink, Card, Description, PageHeader, Table } from "@/components/ui";
 import { AppForm, FormField, Input, SubmitButton } from "@/components/ui/form";
@@ -76,6 +77,8 @@ export default async function SalePage({ params }: { params: Promise<{ id: strin
                 { label: "Impuestos", value: formatCents(s.taxTotal, cur) },
                 { label: "Descuentos", value: formatCents(s.discountTotal, cur) },
                 { label: "Total", value: <b>{formatCents(s.total, cur)}</b> },
+                ...(s.customerId || s.customerName ? [{ label: "Cliente", value: s.customerId ? <Link className="link" href={`/clientes/${s.customerId}`}>{s.customerName}</Link> : s.customerName }] : []),
+                ...(d.credit ? [{ label: "A crédito", value: <>{formatCents(d.credit.amount, cur)} · vence {d.credit.dueDate}</> }] : []),
                 ...(d.showCost ? [{ label: "Costo", value: s.costTotal === null ? <Badge tone="warning">incompleto</Badge> : formatCents(s.costTotal, cur) }, { label: "Utilidad bruta", value: profit === null ? <Badge tone="warning">no confiable: faltan costos</Badge> : formatCents(profit, cur) }] : []),
               ]}
             />

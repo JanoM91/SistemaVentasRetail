@@ -229,8 +229,14 @@ export function DiscountModal({
 
 // ---------------------------------------------------------------- Cobro
 
-export type PaymentChoice = { methodId: string; received: number | null; reference: string };
+export type Tender = { methodId: string; amount: number; received: number | null; reference: string };
+export type CreditInfo = { name: string; available: number; overdue: number; blocked: boolean } | null;
 
+/**
+ * Cobro con uno o varios pagos (p. ej. parte en tarjeta y el resto en
+ * efectivo). Solo el efectivo da cambio. "Crédito del cliente" aparece cuando
+ * la venta tiene un cliente con crédito autorizado.
+ */
 export function PaymentModal({
   total,
   currency,
@@ -238,6 +244,9 @@ export function PaymentModal({
   online,
   busy,
   error,
+  credit,
+  canCreditSale,
+  forceAuth,
   onConfirm,
   onClose,
 }: {
@@ -247,72 +256,154 @@ export function PaymentModal({
   online: boolean;
   busy: boolean;
   error: string | null;
-  onConfirm: (p: PaymentChoice) => void;
+  credit: CreditInfo;
+  canCreditSale: boolean;
+  forceAuth: boolean;
+  onConfirm: (tenders: Tender[], auth?: { username: string; password: string }) => void;
   onClose: () => void;
 }) {
-  const cash = methods.find((m) => m.kind === "cash") ?? methods[0];
+  const visible = methods.filter((m) => m.kind !== "customer_credit" || (credit && !credit.blocked));
+  const cash = visible.find((m) => m.kind === "cash") ?? visible[0];
+  const [tenders, setTenders] = useState<Tender[]>([]);
   const [methodId, setMethodId] = useState(cash?.id ?? "");
-  const [received, setReceived] = useState("");
+  const [value, setValue] = useState("");
   const [reference, setReference] = useState("");
+  const [authUser, setAuthUser] = useState("");
+  const [authPass, setAuthPass] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
-  const method = methods.find((m) => m.id === methodId);
-  const isCash = method?.kind === "cash" || method?.allowsChange;
-  const receivedCents = received ? parseMoney(received) : total;
-  const change = isCash && receivedCents !== null ? receivedCents - total : 0;
+  const method = visible.find((m) => m.id === methodId);
+  const name = (id: string) => methods.find((m) => m.id === id)?.name ?? "";
+  const paid = tenders.reduce((a, t) => a + t.amount, 0);
+  const remaining = total - paid;
+  const isCash = method?.kind === "cash" || !!method?.allowsChange;
+  const isCredit = method?.kind === "customer_credit";
+  const typed = value ? parseMoney(value) : null;
+  const creditDefault = credit ? Math.min(remaining, Math.max(0, credit.available)) || remaining : remaining;
+  const entered = typed ?? (isCredit ? creditDefault : remaining);
+  const applied = isCash ? Math.min(entered, remaining) : entered;
+  const change = isCash ? entered - remaining : 0;
+  const creditUsed = (isCredit ? applied : 0) + tenders.filter((t) => methods.find((m) => m.id === t.methodId)?.kind === "customer_credit").reduce((a, t) => a + t.amount, 0);
+  const needsAuth = creditUsed > 0 && (forceAuth || !canCreditSale || (credit !== null && (creditUsed > credit.available || credit.overdue > 0)));
+  const completes = applied >= remaining && remaining > 0;
   const quick = useMemo(() => {
-    const opts = new Set<number>([total]);
-    for (const step of [2000, 5000, 10000, 20000, 50000]) opts.add(Math.ceil(total / step) * step);
-    return [...opts].filter((v) => v >= total).sort((a, b) => a - b).slice(0, 5);
-  }, [total]);
-  const invalid = !method || (isCash && (receivedCents === null || receivedCents < total)) || (!isCash && method.requiresReference && !reference.trim()) || (!online && method.kind !== "cash");
+    const opts = new Set<number>([remaining]);
+    for (const step of [2000, 5000, 10000, 20000, 50000]) opts.add(Math.ceil(remaining / step) * step);
+    return [...opts].filter((v) => v >= remaining).sort((a, b) => a - b).slice(0, 5);
+  }, [remaining]);
+  const invalidEntry =
+    !method ||
+    entered === null ||
+    entered <= 0 ||
+    (!isCash && entered > remaining) ||
+    (!isCash && method.requiresReference && !reference.trim()) ||
+    (!online && method.kind !== "cash") ||
+    (isCredit && tenders.some((t) => t.methodId === method.id));
+  const invalid = invalidEntry || (needsAuth && (!online || !authUser || !authPass));
 
-  useEffect(() => inputRef.current?.focus(), [methodId]);
-  const submit = () => !invalid && !busy && onConfirm({ methodId, received: isCash ? receivedCents : null, reference: reference.trim() });
+  useEffect(() => inputRef.current?.focus(), [methodId, tenders.length]);
+  const current = (): Tender => ({ methodId, amount: applied, received: isCash ? entered : null, reference: reference.trim() });
+  const reset = () => {
+    setValue("");
+    setReference("");
+    setMethodId(cash?.id ?? "");
+  };
+  const addPartial = () => {
+    if (invalidEntry || completes) return;
+    setTenders((t) => [...t, current()]);
+    reset();
+  };
+  const submit = () => {
+    if (busy) return;
+    if (!completes) return addPartial();
+    if (invalid) return;
+    onConfirm([...tenders, current()], needsAuth ? { username: authUser, password: authPass } : undefined);
+  };
 
   return (
     <Modal title="Cobrar" onClose={onClose}>
       <form onSubmit={(e) => { e.preventDefault(); submit(); }} className="space-y-4">
-        <div className="rounded-xl bg-surface-2 p-4 text-center">
-          <p className="text-sm text-muted">Total a pagar</p>
-          <p className="text-4xl font-bold" data-testid="pay-total">{formatCents(total, currency)}</p>
+        <div className="grid grid-cols-2 gap-2 rounded-xl bg-surface-2 p-4 text-center">
+          <div>
+            <p className="text-sm text-muted">Total</p>
+            <p className="text-3xl font-bold" data-testid="pay-total">{formatCents(total, currency)}</p>
+          </div>
+          <div>
+            <p className="text-sm text-muted">{tenders.length ? "Falta" : "Por cobrar"}</p>
+            <p className={`text-3xl font-bold ${tenders.length ? "text-primary" : ""}`} data-testid="pay-remaining">{formatCents(remaining, currency)}</p>
+          </div>
         </div>
+        {tenders.length > 0 && (
+          <ul className="divide-y divide-border rounded-app border border-border text-sm" data-testid="tenders">
+            {tenders.map((t, i) => (
+              <li key={i} className="flex items-center justify-between px-3 py-2">
+                <span>{name(t.methodId)}{t.reference && <span className="text-muted"> · {t.reference}</span>}</span>
+                <span className="flex items-center gap-2 font-medium">{formatCents(t.amount, currency)}
+                  <button type="button" className="rounded p-1 text-danger" aria-label={`Quitar pago ${name(t.methodId)}`} onClick={() => setTenders((x) => x.filter((_, j) => j !== i))}><X className="size-4" /></button>
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
         <div className="grid grid-cols-2 gap-2">
-          {methods.map((m) => {
-            const disabled = !online && m.kind !== "cash";
+          {visible.map((m) => {
+            const disabled = (!online && m.kind !== "cash") || (m.kind === "customer_credit" && tenders.some((t) => t.methodId === m.id));
             return (
-              <button type="button" key={m.id} disabled={disabled} onClick={() => setMethodId(m.id)} className={`rounded-app border px-3 py-3 text-sm font-medium disabled:opacity-40 ${methodId === m.id ? "border-primary bg-primary/10 text-primary" : "border-border"}`}>
+              <button type="button" key={m.id} disabled={disabled} onClick={() => { setMethodId(m.id); setValue(""); }} className={`rounded-app border px-3 py-3 text-sm font-medium disabled:opacity-40 ${methodId === m.id ? "border-primary bg-primary/10 text-primary" : "border-border"}`}>
                 {m.name}
               </button>
             );
           })}
         </div>
         {!online && <p className="text-xs text-warning">Sin conexión solo se acepta efectivo.</p>}
+        {isCredit && credit && (
+          <p className="rounded-app bg-surface-2 p-2 text-sm">
+            {credit.name}: disponible <b>{formatCents(credit.available, currency)}</b>{credit.overdue > 0 && <span className="text-danger"> · vencido {formatCents(credit.overdue, currency)}</span>}
+          </p>
+        )}
         {isCash ? (
           <>
             <label className="block text-sm font-medium">Efectivo recibido
-              <input ref={inputRef} className="field mt-1 text-2xl" inputMode="decimal" placeholder={(total / 100).toFixed(2)} value={received} onChange={(e) => setReceived(e.target.value)} data-testid="received" />
+              <input ref={inputRef} className="field mt-1 text-2xl" inputMode="decimal" placeholder={(remaining / 100).toFixed(2)} value={value} onChange={(e) => setValue(e.target.value)} data-testid="received" />
             </label>
             <div className="flex flex-wrap gap-2">
               {quick.map((q) => (
-                <button type="button" key={q} onClick={() => setReceived((q / 100).toFixed(2))} className="rounded-app border border-border px-3 py-2 text-sm hover:bg-surface-2">{q === total ? "Exacto" : formatCents(q, currency)}</button>
+                <button type="button" key={q} onClick={() => setValue((q / 100).toFixed(2))} className="rounded-app border border-border px-3 py-2 text-sm hover:bg-surface-2">{q === remaining ? "Exacto" : formatCents(q, currency)}</button>
               ))}
             </div>
-            <div className={`rounded-xl p-3 text-center ${change >= 0 ? "bg-success/10" : "bg-danger/10"}`}>
-              <p className="text-sm text-muted">{change >= 0 ? "Cambio" : "Falta"}</p>
+            <div className={`rounded-xl p-3 text-center ${change >= 0 ? "bg-success/10" : "bg-surface-2"}`}>
+              <p className="text-sm text-muted">{change >= 0 ? "Cambio" : "Quedará por cobrar"}</p>
               <p className="text-3xl font-bold" data-testid="change">{formatCents(Math.abs(change), currency)}</p>
             </div>
           </>
         ) : (
-          method?.requiresReference && (
-            <label className="block text-sm font-medium">Referencia / autorización
-              <input ref={inputRef} className="field mt-1" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Número de autorización de la terminal o folio de transferencia" />
+          <>
+            <label className="block text-sm font-medium">Importe
+              <input ref={inputRef} className="field mt-1 text-2xl" inputMode="decimal" placeholder={((isCredit ? creditDefault : remaining) / 100).toFixed(2)} value={value} onChange={(e) => setValue(e.target.value)} data-testid="tender-amount" />
             </label>
-          )
+            {method?.requiresReference && (
+              <label className="block text-sm font-medium">Referencia / autorización
+                <input className="field mt-1" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Autorización de la terminal o folio de transferencia" data-testid="tender-reference" />
+              </label>
+            )}
+          </>
+        )}
+        {needsAuth && (
+          <div className="space-y-2 rounded-app border border-warning/50 bg-warning/10 p-3">
+            <p className="text-sm font-medium">{!canCreditSale ? "Vender a crédito requiere autorización de un gerente" : "Excede el crédito disponible o tiene saldo vencido: requiere autorización"}</p>
+            <input className="field" placeholder="Usuario del gerente" value={authUser} onChange={(e) => setAuthUser(e.target.value)} autoComplete="off" aria-label="Usuario autorizador" />
+            <input className="field" type="password" placeholder="Contraseña" value={authPass} onChange={(e) => setAuthPass(e.target.value)} autoComplete="off" aria-label="Contraseña del autorizador" />
+          </div>
         )}
         {error && <p className="rounded-app bg-danger-bg p-3 text-sm text-danger" role="alert">{error}</p>}
-        <button type="submit" disabled={invalid || busy} className="w-full rounded-xl bg-primary py-4 text-lg font-semibold text-primary-fg disabled:opacity-50" data-testid="confirm-sale">
-          {busy ? "Registrando…" : "Confirmar venta (Enter)"}
-        </button>
+        {completes ? (
+          <button type="submit" disabled={invalid || busy} className="w-full rounded-xl bg-primary py-4 text-lg font-semibold text-primary-fg disabled:opacity-50" data-testid="confirm-sale">
+            {busy ? "Registrando…" : "Confirmar venta (Enter)"}
+          </button>
+        ) : (
+          <button type="submit" disabled={invalidEntry || busy} className="w-full rounded-xl border-2 border-primary py-4 text-lg font-semibold text-primary disabled:opacity-50" data-testid="add-tender">
+            Agregar pago de {formatCents(Math.max(0, applied), currency)} · faltan {formatCents(Math.max(0, remaining - applied), currency)}
+          </button>
+        )}
       </form>
     </Modal>
   );

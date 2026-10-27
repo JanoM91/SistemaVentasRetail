@@ -16,6 +16,7 @@ import { branches, cashRegisters, companies, tenants, warehouses } from "./organ
 import { users } from "./identity";
 import { paymentMethods, salesChannels, type PaymentKind } from "./commerce-config";
 import { productVariants } from "./catalog";
+import { customers } from "./customers";
 
 const money = (name: string) => bigint(name, { mode: "number" });
 const qty = (name: string) => numeric(name, { precision: 18, scale: 3 });
@@ -31,6 +32,9 @@ export type CashSummary = {
   cancelledTotal: number;
   byMethod: Array<{ methodId: string; name: string; kind: PaymentKind; amount: number; count: number }>;
   cashSales: number;
+  /** Abonos de clientes recibidos en el turno, por método (opcional en cortes anteriores a 4B). */
+  creditPayments?: Array<{ methodId: string; name: string; kind: PaymentKind; amount: number; count: number }>;
+  cashCreditPayments?: number;
   deposits: number;
   withdrawals: number;
   expectedCash: number;
@@ -83,7 +87,7 @@ export const cashMovements = pgTable(
 // ---------------------------------------------------------------- Ventas
 
 export type SaleFlag = {
-  code: "price_changed" | "negative_stock" | "session_closed" | "variant_inactive" | "late_sync" | "discount_unauthorized";
+  code: "price_changed" | "negative_stock" | "session_closed" | "variant_inactive" | "late_sync" | "discount_unauthorized" | "customer_missing";
   detail: string;
 };
 
@@ -112,6 +116,7 @@ export const sales = pgTable(
     changeAmount: money("change_amount").notNull().default(0),
     /** Costo total de lo vendido; nulo si alguna línea no tiene costo (utilidad incompleta). */
     costTotal: money("cost_total"),
+    customerId: uuid("customer_id").references(() => customers.id),
     customerName: text("customer_name"),
     notes: text("notes"),
     soldBy: uuid("sold_by").notNull().references(() => users.id),
@@ -133,6 +138,7 @@ export const sales = pgTable(
     uniqueIndex("sales_folio_idx").on(t.branchId, t.series, t.number),
     index("sales_session_idx").on(t.cashSessionId),
     index("sales_branch_sold_idx").on(t.branchId, t.soldAt),
+    index("sales_customer_idx").on(t.customerId, t.soldAt),
   ],
 );
 

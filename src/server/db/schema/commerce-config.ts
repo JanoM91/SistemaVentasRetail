@@ -60,6 +60,8 @@ export const DOCUMENT_TYPES = [
   "transfer",
   "count",
   "invoice",
+  "customer_payment",
+  "customer",
 ] as const;
 export type DocumentType = (typeof DOCUMENT_TYPES)[number];
 

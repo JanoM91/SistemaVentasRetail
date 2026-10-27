@@ -17,5 +17,6 @@ export function toTicketData(d: Awaited<ReturnType<typeof getSale>>): TicketData
     totals: { subtotal: d.sale.subtotal, tax: d.sale.taxTotal, discount: d.sale.discountTotal, total: d.sale.total },
     payments: d.payments.map(({ p, methodName }) => ({ name: methodName, amount: p.amount, received: p.received, change: p.change, reference: p.reference })),
     customerName: d.sale.customerName,
+    credit: d.credit,
   };
 }

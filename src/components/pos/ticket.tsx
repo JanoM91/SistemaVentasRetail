@@ -14,6 +14,8 @@ export type TicketData = {
   totals: { subtotal: number; tax: number; discount: number; total: number };
   payments: Array<{ name: string; amount: number; received?: number | null; change?: number | null; reference?: string | null }>;
   customerName?: string | null;
+  /** Venta a crédito: importe cargado, saldo resultante y vencimiento. */
+  credit?: { amount: number; balance: number | null; dueDate: string | null } | null;
   offline?: boolean;
 };
 
@@ -64,10 +66,67 @@ export function Ticket({ t }: { t: TicketData }) {
           {!!p.change && p.change > 0 && <div className="flex justify-between"><span>Cambio</span><span>{money(p.change)}</span></div>}
         </div>
       ))}
+      {t.credit && (
+        <>
+          <hr className="my-2 border-dashed border-black" />
+          <p className="font-bold">VENTA A CRÉDITO</p>
+          <div className="flex justify-between"><span>Importe a crédito</span><span>{money(t.credit.amount)}</span></div>
+          {t.credit.balance !== null && <div className="flex justify-between"><span>Saldo total</span><span>{money(t.credit.balance)}</span></div>}
+          {t.credit.dueDate && <p>Vence: {t.credit.dueDate}</p>}
+          <p className="mt-6 border-t border-black pt-1 text-center">Firma de conformidad · {t.customerName}</p>
+        </>
+      )}
       <hr className="my-2 border-dashed border-black" />
       <p className="text-center">Artículos: {formatQty(t.lines.reduce((a, l) => a + l.quantity, 0))}</p>
       <p className="mt-1 text-center">¡Gracias por su compra!</p>
       <p className="text-center">Este ticket no es un comprobante fiscal.</p>
+    </div>
+  );
+}
+
+export type AbonoTicketData = {
+  company: TicketData["company"];
+  branchName: string;
+  folio: string;
+  createdAt: string | Date;
+  timezone: string;
+  currency: string;
+  cashierName: string;
+  customer: { name: string; code: string };
+  amount: number;
+  methodName: string;
+  received?: number | null;
+  change?: number | null;
+  reference?: string | null;
+  balanceBefore: number;
+  balanceAfter: number;
+};
+
+/** Comprobante de abono a la cuenta del cliente (80 mm). */
+export function AbonoTicket({ t }: { t: AbonoTicketData }) {
+  const when = new Intl.DateTimeFormat("es-MX", { timeZone: t.timezone, dateStyle: "short", timeStyle: "short" }).format(new Date(t.createdAt));
+  const money = (c: number) => formatCents(c, t.currency);
+  return (
+    <div className="ticket mx-auto p-3" data-testid="abono-ticket">
+      <div className="text-center">
+        <p className="text-sm font-bold">{t.company.tradeName}</p>
+        {t.company.taxId && <p>RFC {t.company.taxId}</p>}
+        <p>{t.branchName}</p>
+      </div>
+      <hr className="my-2 border-dashed border-black" />
+      <p className="text-center font-bold">COMPROBANTE DE ABONO</p>
+      <p>Folio: <b>{t.folio}</b></p>
+      <p>{when}</p>
+      <p>Recibió: {t.cashierName}</p>
+      <p>Cliente: {t.customer.name} ({t.customer.code})</p>
+      <hr className="my-2 border-dashed border-black" />
+      <div className="flex justify-between"><span>Saldo anterior</span><span>{money(t.balanceBefore)}</span></div>
+      <div className="flex justify-between text-sm font-bold"><span>Abono</span><span>{money(t.amount)}</span></div>
+      <div className="flex justify-between"><span>Saldo actual</span><span>{money(t.balanceAfter)}</span></div>
+      <hr className="my-2 border-dashed border-black" />
+      <div className="flex justify-between"><span>{t.methodName}{t.reference ? ` (${t.reference})` : ""}</span><span>{money(t.received ?? t.amount)}</span></div>
+      {!!t.change && t.change > 0 && <div className="flex justify-between"><span>Cambio</span><span>{money(t.change)}</span></div>}
+      <p className="mt-2 text-center">Conserve este comprobante.</p>
     </div>
   );
 }

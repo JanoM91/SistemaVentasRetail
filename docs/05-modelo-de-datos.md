@@ -67,6 +67,15 @@ Regla: todo producto simple tiene exactamente una variante por defecto; el inven
 
 El historial de precios del proveedor se obtiene de `purchase_receipt_lines` (no hay tabla separada). Los folios de documentos de empresa (`OC`, `RC`, `DP`, `TR`, `CF`) usan `document_sequences` con `branch_id` nulo.
 
+## 5b. Clientes y crédito (implementado en 4B)
+
+| Tabla | Propósito |
+| --- | --- |
+| `customer_groups` | Grupos por empresa (nombre único sin distinguir mayúsculas). En 4D se ligan a listas de precios. |
+| `customers` | Clave `CL-000001` por empresa; contacto, cumpleaños, grupo; datos fiscales (RFC, razón social, régimen, uso CFDI, C.P.); consentimiento de marketing con fecha; crédito (`credit_limit` nulo = sin crédito, `credit_days`, `credit_blocked`, `credit_balance`); estadísticas de compra mantenidas en la transacción de la venta. |
+| `customer_credit_movements` | **Inmutable** (trigger). Cargo por venta a crédito (con vencimiento), abono (folio `AB`, método, turno de caja si se cobró en caja), reversa por cancelación y ajuste con motivo. `balance_after` en cada fila. La antigüedad de saldos se calcula por PEPS. |
+| `sales.customer_id` | Cliente de la venta (opcional). |
+
 ## 6. Ventas y caja (F3 base; F4 completa)
 
 | Tabla | Propósito |

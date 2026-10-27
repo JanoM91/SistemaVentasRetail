@@ -29,6 +29,13 @@
       "when": 1793074050864,
       "tag": "0003_fase4a_compras_traspasos_conteos",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793078407682,
+      "tag": "0004_fase4b_clientes_credito",
+      "breakpoints": true
     }
   ]
 }

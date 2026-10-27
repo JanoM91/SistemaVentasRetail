@@ -2,13 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, CloudOff, Pause, Printer, RefreshCw, Search, Star, Wifi } from "lucide-react";
+import { ArrowLeft, CloudOff, HandCoins, Pause, Printer, RefreshCw, Search, Star, User, Wifi, X } from "lucide-react";
 import { computeTotals, formatCents, normalizeQty } from "@/lib/money";
 import { localDb, nextClientSequence, uuidv7, type HeldCart, type RecentSale } from "@/lib/pos/local-db";
 import { CLIENT_HEADERS, outboxCounts, syncOutbox } from "@/lib/pos/sync";
-import { Ticket, type TicketData } from "@/components/pos/ticket";
+import { AbonoTicket, Ticket, type AbonoTicketData, type TicketData } from "@/components/pos/ticket";
 import type { PosCatalog, PosItem } from "@/server/modules/pos/catalog";
-import { CartView, DiscountModal, groupProducts, lineAmounts, Modal, norm, PaymentModal, ProductGrid, VariantModal, type CartLine, type PaymentChoice, type ProductTile } from "./pos-parts";
+import { CartView, DiscountModal, groupProducts, lineAmounts, Modal, norm, PaymentModal, ProductGrid, VariantModal, type CartLine, type ProductTile, type Tender } from "./pos-parts";
+import { AbonoModal, CustomerModal, type PosCustomer } from "./pos-customer";
 
 export type PosRegister = { id: string; code: string; name: string; session: { id: string; openedAt: string; openedByName: string | null } | null };
 
@@ -18,7 +19,7 @@ export type PosInitial = {
   company: { tradeName: string; legalName: string; taxId: string | null; address: Record<string, string | undefined>; currency: string; timezone: string; maxDiscountPercent: number };
   branch: { id: string; name: string };
   registers: PosRegister[];
-  can: { discount: boolean; editPrice: boolean; openCash: boolean };
+  can: { discount: boolean; editPrice: boolean; openCash: boolean; customers: boolean; createCustomers: boolean; creditSale: boolean; creditModule: boolean; abono: boolean };
   loadedAt: string;
 };
 
@@ -48,6 +49,12 @@ export function PosApp({ initial }: { initial: PosInitial }) {
   const [counts, setCounts] = useState({ pending: 0, rejected: 0, otherUsers: 0 });
   const [syncing, setSyncing] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
+  const [customer, setCustomer] = useState<PosCustomer | null>(null);
+  const [customerName, setCustomerName] = useState<string | null>(null);
+  const [customerModal, setCustomerModal] = useState(false);
+  const [abonoOpen, setAbonoOpen] = useState(false);
+  const [abonoTicket, setAbonoTicket] = useState<AbonoTicketData | null>(null);
+  const [forceAuth, setForceAuth] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
   /** UUID de la venta en cobro: se conserva entre reintentos para que el servidor no la duplique. */
   const saleIdRef = useRef<string | null>(null);
@@ -264,6 +271,8 @@ export function PosApp({ initial }: { initial: PosInitial }) {
   const clearSale = () => {
     setCart([]);
     setDiscountAuth(null);
+    setCustomer(null);
+    setCustomerName(null);
     setQuery("");
     focusSearch();
   };
@@ -272,7 +281,8 @@ export function PosApp({ initial }: { initial: PosInitial }) {
 
   const holdSale = async () => {
     if (!cart.length || !registerId) return;
-    await localDb.heldPut({ id: uuidv7(), label: `${cart.length} producto(s) · ${formatCents(totals.total, cur)}`, createdAt: new Date().toISOString(), registerId, lines: cart });
+    const who = customer?.name ?? customerName;
+    await localDb.heldPut({ id: uuidv7(), label: `${who ? `${who} · ` : ""}${cart.length} producto(s) · ${formatCents(totals.total, cur)}`, createdAt: new Date().toISOString(), registerId, lines: cart, customer, customerName });
     clearSale();
     await refreshCounts();
     notify({ tone: "info", text: "Venta en espera. Recupérala desde «En espera»." });
@@ -281,6 +291,8 @@ export function PosApp({ initial }: { initial: PosInitial }) {
   const resumeSale = async (h: HeldCart) => {
     if (cart.length && !confirm("Hay una venta en curso. ¿Reemplazarla?")) return;
     setCart(h.lines as CartLine[]);
+    setCustomer((h.customer as PosCustomer | null | undefined) ?? null);
+    setCustomerName(h.customerName ?? null);
     await localDb.heldDelete(h.id);
     setPanel(null);
     await refreshCounts();
@@ -289,7 +301,13 @@ export function PosApp({ initial }: { initial: PosInitial }) {
 
   // ------------------------------------------------------------ Cobro
 
-  const buildTicket = (folio: string | null, payment: { name: string; amount: number; received: number | null; change: number; reference: string | null }, soldAt: string, pending: boolean): TicketData => ({
+  const buildTicket = (
+    folio: string | null,
+    paymentList: Array<{ name: string; amount: number; received: number | null; change: number; reference: string | null }>,
+    soldAt: string,
+    pending: boolean,
+    credit: TicketData["credit"] = null,
+  ): TicketData => ({
     company: { tradeName: initial.company.tradeName, legalName: initial.company.legalName, taxId: initial.company.taxId, address: initial.company.address },
     branch: { name: initial.branch.name },
     folio,
@@ -304,7 +322,9 @@ export function PosApp({ initial }: { initial: PosInitial }) {
       return { description: `${l.name}${l.variantName ? ` ${l.variantName}` : ""}`, sku: l.sku, quantity: l.quantity, unitPrice: l.unitPrice, discount: a.discount, total: a.total };
     }),
     totals: { subtotal: totals.subtotal, tax: totals.tax, discount: totals.discount, total: totals.total },
-    payments: [payment],
+    payments: paymentList,
+    customerName: customer?.name ?? customerName,
+    credit,
     offline: pending,
   });
 
@@ -316,34 +336,43 @@ export function PosApp({ initial }: { initial: PosInitial }) {
     await localDb.saveCatalog(next);
   };
 
-  const confirmSale = async (p: PaymentChoice) => {
+  const confirmSale = async (tenders: Tender[], creditAuth?: { username: string; password: string }) => {
     if (!register || !catalog) return;
-    const method = catalog.paymentMethods.find((m) => m.id === p.methodId)!;
+    const methodOf = (id: string) => catalog.paymentMethods.find((m) => m.id === id)!;
     setPayBusy(true);
     setPayError(null);
     const { deviceId, sequence } = await nextClientSequence();
     const id = (saleIdRef.current ??= uuidv7());
     const soldAt = new Date().toISOString();
-    const isCash = method.kind === "cash" || method.allowsChange;
+    const isCashM = (m: { kind: string; allowsChange: boolean }) => m.kind === "cash" || m.allowsChange;
     const payload = {
       id,
       cashRegisterId: register.id,
       soldAt,
       clientSequence: sequence,
       deviceId,
+      customerId: customer?.id ?? undefined,
+      customerName: customer ? undefined : (customerName ?? undefined),
       lines: cart.map((l) => ({ variantId: l.variantId, quantity: l.quantity, unitPrice: l.unitPrice, discount: lineAmounts(l).discount })),
-      payments: [{ paymentMethodId: method.id, amount: totals.total, received: isCash ? (p.received ?? totals.total) : undefined, reference: p.reference || undefined }],
+      payments: tenders.map((t) => ({ paymentMethodId: t.methodId, amount: t.amount, received: isCashM(methodOf(t.methodId)) ? (t.received ?? t.amount) : undefined, reference: t.reference || undefined })),
       ...(discountAuth ? { discountAuthorization: discountAuth } : {}),
+      ...(creditAuth ? { creditAuthorization: creditAuth } : {}),
     };
-    const paymentInfo = { name: method.name, amount: totals.total, received: isCash ? (p.received ?? totals.total) : null, change: isCash ? (p.received ?? totals.total) - totals.total : 0, reference: p.reference || null };
+    const paymentInfo = tenders.map((t) => {
+      const m = methodOf(t.methodId);
+      const cashy = isCashM(m);
+      return { name: m.name, amount: t.amount, received: cashy ? (t.received ?? t.amount) : null, change: cashy ? (t.received ?? t.amount) - t.amount : 0, reference: t.reference || null };
+    });
+    const allCash = tenders.every((t) => methodOf(t.methodId).kind === "cash");
 
     const queueOffline = async () => {
-      if (method.kind !== "cash") {
+      if (!allCash) {
         setPayError("Sin conexión solo se aceptan pagos en efectivo.");
         return false;
       }
-      const { discountAuthorization: _omit, ...offlinePayload } = payload as typeof payload & { discountAuthorization?: unknown };
+      const { discountAuthorization: _omit, creditAuthorization: _omit2, ...offlinePayload } = payload as typeof payload & { discountAuthorization?: unknown; creditAuthorization?: unknown };
       void _omit;
+      void _omit2;
       const t = buildTicket(null, paymentInfo, soldAt, true);
       await localDb.outboxPut({ id, userId: initial.user.id, tenantId: initial.tenantId, createdAt: soldAt, attempts: 0, status: "pending", payload: offlinePayload, ticket: t });
       await localDb.recentPut({ id, folio: null, total: totals.total, soldAt, status: "pending", ticket: t });
@@ -382,9 +411,10 @@ export function PosApp({ initial }: { initial: PosInitial }) {
           setPayError("Los precios se actualizaron. Revisa el total y cobra de nuevo.");
         }
         if (json.code === "unauthenticated") setPayError("Tu sesión expiró. Inicia sesión en otra pestaña y vuelve a cobrar.");
+        if (json.code === "credit_authorization_required") setForceAuth(true);
         return;
       }
-      const t = buildTicket(json.data.folio, paymentInfo, soldAt, false);
+      const t = buildTicket(json.data.folio, paymentInfo, soldAt, false, json.data.credit);
       await localDb.recentPut({ id, folio: json.data.folio, total: totals.total, soldAt, status: "synced", ticket: t });
       await decrementLocalStock();
       setTicket(t);
@@ -398,8 +428,11 @@ export function PosApp({ initial }: { initial: PosInitial }) {
   const finishSale = () => {
     saleIdRef.current = null;
     setPaying(false);
+    setForceAuth(false);
     setCart([]);
     setDiscountAuth(null);
+    setCustomer(null);
+    setCustomerName(null);
     localDb.recentTrim(50);
     if (navigator.onLine) runSync(true);
   };
@@ -456,6 +489,11 @@ export function PosApp({ initial }: { initial: PosInitial }) {
         <button onClick={() => setPanel("pending")} className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${counts.pending || counts.rejected ? "bg-warning/15 text-warning" : "bg-surface-2 text-muted"}`} data-testid="pending-badge">
           <RefreshCw className={`size-3.5 ${syncing ? "animate-spin" : ""}`} /> {counts.pending} pendiente{counts.pending === 1 ? "" : "s"}{counts.rejected ? ` · ${counts.rejected} rechazada(s)` : ""}
         </button>
+        {initial.can.abono && (
+          <button onClick={() => setAbonoOpen(true)} disabled={!online || !sessionOpen || !catalog} title={!online ? "Requiere conexión" : !sessionOpen ? "Abre la caja" : "Recibir abono de un cliente"} className="flex items-center gap-1 rounded-full bg-surface-2 px-2.5 py-1 text-xs font-medium text-muted disabled:opacity-40" data-testid="abono-button">
+            <HandCoins className="size-3.5" /> Abono
+          </button>
+        )}
         <button onClick={() => setPanel("held")} className="flex items-center gap-1 rounded-full bg-surface-2 px-2.5 py-1 text-xs font-medium text-muted">
           <Pause className="size-3.5" /> En espera ({held.length})
         </button>
@@ -523,6 +561,29 @@ export function PosApp({ initial }: { initial: PosInitial }) {
             <h2 className="font-semibold">Venta actual</h2>
             {cart.length > 0 && <button className="text-sm text-danger" onClick={() => confirm("¿Vaciar la venta?") && clearSale()}>Vaciar</button>}
           </div>
+          {initial.can.customers && (
+            <div className="border-b border-border px-3 py-2">
+              {customer || customerName ? (
+                <div className="flex items-center justify-between gap-2 rounded-app bg-primary/10 px-3 py-2 text-sm" data-testid="sale-customer">
+                  <button className="min-w-0 text-left" onClick={() => setCustomerModal(true)}>
+                    <span className="flex items-center gap-1 truncate font-medium"><User className="size-4 shrink-0" /> {customer?.name ?? customerName}</span>
+                    {customer?.credit && (
+                      <span className={`block text-xs ${customer.credit.overdue > 0 || customer.credit.blocked ? "text-danger" : "text-muted"}`}>
+                        {customer.credit.blocked ? "Crédito bloqueado" : `Crédito disponible ${formatCents(customer.credit.available, cur)}`}
+                        {customer.credit.overdue > 0 && ` · vencido ${formatCents(customer.credit.overdue, cur)}`}
+                      </span>
+                    )}
+                    {!customer?.credit && !!customer?.balance && <span className="block text-xs text-warning">Saldo pendiente {formatCents(customer.balance, cur)}</span>}
+                  </button>
+                  <button className="rounded p-1 hover:bg-surface-2" aria-label="Quitar cliente" onClick={() => { setCustomer(null); setCustomerName(null); }}><X className="size-4" /></button>
+                </div>
+              ) : (
+                <button className="flex w-full items-center gap-2 rounded-app border border-dashed border-border px-3 py-2 text-sm text-muted hover:text-text" onClick={() => setCustomerModal(true)} data-testid="add-customer">
+                  <User className="size-4" /> Agregar cliente (opcional)
+                </button>
+              )}
+            </div>
+          )}
           <div className="min-h-0 flex-1 overflow-auto">
             <CartView lines={cart} currency={cur} onQty={setQty} onRemove={(i) => setCart((c) => c.filter((_, j) => j !== i))} onDiscount={(i) => setDiscountLine(i)} />
           </div>
@@ -568,7 +629,19 @@ export function PosApp({ initial }: { initial: PosInitial }) {
         />
       )}
       {paying && catalog && (
-        <PaymentModal total={totals.total} currency={cur} methods={catalog.paymentMethods} online={online} busy={payBusy} error={payError} onConfirm={confirmSale} onClose={() => { setPaying(false); focusSearch(); }} />
+        <PaymentModal
+          total={totals.total}
+          currency={cur}
+          methods={catalog.paymentMethods.filter((m) => m.kind !== "customer_credit" || (initial.can.creditModule && customer?.credit))}
+          online={online}
+          busy={payBusy}
+          error={payError}
+          credit={customer?.credit ? { name: customer.name, available: customer.credit.available, overdue: customer.credit.overdue, blocked: customer.credit.blocked } : null}
+          canCreditSale={initial.can.creditSale}
+          forceAuth={forceAuth}
+          onConfirm={confirmSale}
+          onClose={() => { setPaying(false); setForceAuth(false); focusSearch(); }}
+        />
       )}
       {ticket && (
         <Modal title={ticket.folio ? `Venta ${ticket.folio}` : "Venta guardada sin conexión"} onClose={() => { setTicket(null); focusSearch(); }}>
@@ -635,6 +708,56 @@ export function PosApp({ initial }: { initial: PosInitial }) {
             ))}
           </ul>
           <p className="mt-3 text-xs text-muted">Las ventas rechazadas no se borran: quedan aquí y en el registro de sincronización del servidor para que un gerente las revise.</p>
+        </Modal>
+      )}
+      {customerModal && (
+        <CustomerModal
+          online={online}
+          canCreate={initial.can.createCustomers}
+          onPick={(c) => { setCustomer(c); setCustomerName(null); setCustomerModal(false); focusSearch(); }}
+          onName={(n) => { setCustomer(null); setCustomerName(n); setCustomerModal(false); focusSearch(); }}
+          onClose={() => { setCustomerModal(false); focusSearch(); }}
+        />
+      )}
+      {abonoOpen && register && catalog && (
+        <AbonoModal
+          registerId={register.id}
+          methods={catalog.paymentMethods}
+          currency={cur}
+          initialCustomer={customer}
+          canCreate={false}
+          onClose={() => { setAbonoOpen(false); focusSearch(); }}
+          onDone={(r) => {
+            setAbonoOpen(false);
+            if (customer?.id === r.customer.id) setCustomer(r.customer);
+            setAbonoTicket({
+              company: { tradeName: initial.company.tradeName, legalName: initial.company.legalName, taxId: initial.company.taxId, address: initial.company.address },
+              branchName: initial.branch.name,
+              folio: r.folio,
+              createdAt: r.createdAt,
+              timezone: initial.company.timezone,
+              currency: cur,
+              cashierName: initial.user.fullName,
+              customer: { name: r.customer.name, code: r.customer.code },
+              amount: r.amount,
+              methodName: r.methodName,
+              received: r.received,
+              change: r.change,
+              balanceBefore: r.balanceAfter + r.amount,
+              balanceAfter: r.balanceAfter,
+            });
+          }}
+        />
+      )}
+      {abonoTicket && (
+        <Modal title={`Abono ${abonoTicket.folio}`} onClose={() => { setAbonoTicket(null); focusSearch(); }}>
+          <div className="print-area rounded-app border border-border bg-white">
+            <AbonoTicket t={abonoTicket} />
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            <button className="flex items-center justify-center gap-2 rounded-xl border border-border py-3 font-medium" onClick={printTicket}><Printer className="size-5" /> Imprimir</button>
+            <button className="rounded-xl bg-primary py-3 font-semibold text-primary-fg" onClick={() => { setAbonoTicket(null); focusSearch(); }} autoFocus>Listo</button>
+          </div>
         </Modal>
       )}
       {toast && (

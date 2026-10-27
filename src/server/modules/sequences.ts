@@ -13,6 +13,8 @@ export const DEFAULT_SERIES: Record<DocumentType, string> = {
   transfer: "TR",
   count: "CF",
   invoice: "F",
+  customer_payment: "AB",
+  customer: "CL",
 };
 
 /**

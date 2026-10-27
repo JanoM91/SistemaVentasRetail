@@ -6,6 +6,8 @@ import {
   cashRegisters,
   cashSessions,
   companies,
+  customerCreditMovements,
+  customers,
   inventoryLedger,
   paymentMethods,
   payments,
@@ -27,6 +29,7 @@ import { computeLine, computeTotals, normalizeQty, roundHalfEven } from "@/lib/m
 import { postMovement } from "@/server/modules/inventory/ledger";
 import { allowsNegative, getDefaultWarehouse, variantLabel } from "@/server/modules/inventory/service";
 import { getAccessibleRegister, getOpenSession } from "@/server/modules/cash/service";
+import { bumpPurchaseStats, checkCreditSale, postCreditCharge, reverseCreditCharge } from "@/server/modules/customers/service";
 import { verifyAuthorizer } from "@/server/modules/auth/service";
 import { nextFolio } from "@/server/modules/sequences";
 
@@ -40,6 +43,10 @@ export const saleInputSchema = z.object({
   clientSequence: z.number().int().nonnegative().optional(),
   deviceId: z.string().max(64).optional(),
   customerName: z.string().trim().max(120).optional().or(z.literal("")),
+  /** Cliente registrado (opcional; obligatorio para pagar a crédito). */
+  customerId: z.string().uuid().optional().nullable(),
+  /** Autorización de gerente para vender a crédito fuera de límite o sin permiso. */
+  creditAuthorization: z.object({ username: z.string(), password: z.string() }).optional(),
   notes: z.string().trim().max(500).optional().or(z.literal("")),
   lines: z
     .array(
@@ -191,6 +198,25 @@ export async function createSale(ctx: ServiceContext, raw: unknown, opts: { orig
   if (paid !== totals.total) throw new DomainError("payment_mismatch", `Los pagos (${(paid / 100).toFixed(2)}) no cuadran con el total (${(totals.total / 100).toFixed(2)}).`, 422);
   const change = paymentRows.reduce((a, p) => a + p.change, 0);
 
+  // --- Cliente y crédito
+  let customer: typeof customers.$inferSelect | null = null;
+  if (input.customerId) {
+    [customer] = await db.select().from(customers).where(and(eq(customers.id, input.customerId), eq(customers.companyId, company.id))).limit(1);
+    if (!customer) {
+      if (offline) flag("customer_missing", "El cliente de la venta ya no existe; se registró sin cliente.");
+      else throw new NotFoundError("El cliente");
+      customer = null;
+    }
+  }
+  const creditRows = paymentRows.filter((p) => p.m.kind === "customer_credit");
+  const creditAmount = creditRows.reduce((a, p) => a + p.amount, 0);
+  let creditAuthorizedBy: string | null = null;
+  if (creditRows.length) {
+    if (creditRows.length > 1) throw new ValidationError({ payments: ["Solo un pago a crédito por venta."] }, "Solo un pago a crédito por venta.");
+    if (!customer) throw new ValidationError({ customerId: ["Elige el cliente."] }, "Para vender a crédito elige un cliente registrado.");
+    creditAuthorizedBy = (await checkCreditSale(ctx, customer, creditAmount, input.creditAuthorization)).authorizedBy;
+  }
+
   // --- Registro atómico
   try {
     return await db.transaction(async (tx) => {
@@ -248,7 +274,8 @@ export async function createSale(ctx: ServiceContext, raw: unknown, opts: { orig
           paidTotal: paid,
           changeAmount: change,
           costTotal,
-          customerName: input.customerName || null,
+          customerId: customer?.id ?? null,
+          customerName: customer?.name ?? (input.customerName || null),
           notes: input.notes || null,
           soldBy: ctx.userId,
           soldAt,
@@ -298,6 +325,16 @@ export async function createSale(ctx: ServiceContext, raw: unknown, opts: { orig
         })),
       );
 
+      if (customer) await bumpPurchaseStats(tx, customer.id, 1, totals.total, soldAt);
+      if (creditAmount > 0 && customer) {
+        const charge = await postCreditCharge(tx, ctx, { customerId: customer.id, saleId: sale.id, folio: sale.folio, branchId: reg.branchId, amount: creditAmount, soldAt, authorizedBy: creditAuthorizedBy, enforceLimit: !creditAuthorizedBy });
+        await recordAudit(tx, { ...ctx.actor, branchId: reg.branchId, authorizedByUserId: creditAuthorizedBy }, {
+          action: "pos.credit_sale",
+          entity: "sale",
+          entityId: sale.id,
+          after: { folio: sale.folio, customer: customer.name, amount: creditAmount, balance: charge.balance, dueDate: charge.dueDate },
+        });
+      }
       if (totals.discount > 0) {
         await recordAudit(tx, { ...ctx.actor, branchId: reg.branchId, authorizedByUserId: discountAuthorizedBy }, {
           action: "pos.discount",
@@ -369,6 +406,10 @@ export async function cancelSale(ctx: ServiceContext, saleId: string, raw: unkno
       .where(eq(sales.id, saleId))
       .returning();
     await tx.update(payments).set({ status: "refunded" }).where(eq(payments.saleId, saleId));
+    if (locked.customerId) {
+      await bumpPurchaseStats(tx, locked.customerId, -1, locked.total, locked.soldAt);
+      await reverseCreditCharge(tx, ctx, locked);
+    }
     await recordAudit(tx, { ...ctx.actor, branchId: locked.branchId, authorizedByUserId: authorizedBy }, {
       action: "pos.cancel",
       entity: "sale",
@@ -419,7 +460,7 @@ async function getSaleRow(ctx: ServiceContext, saleId: string) {
 
 export async function getSale(ctx: ServiceContext, saleId: string) {
   const sale = await getSaleRow(ctx, saleId);
-  const [lines, pays, meta] = await Promise.all([
+  const [lines, pays, meta, charge] = await Promise.all([
     db.select().from(saleLines).where(eq(saleLines.saleId, saleId)).orderBy(saleLines.lineNo),
     db
       .select({ p: payments, methodName: paymentMethods.name })
@@ -435,6 +476,9 @@ export async function getSale(ctx: ServiceContext, saleId: string) {
       .innerJoin(users, eq(users.id, sales.soldBy))
       .where(eq(sales.id, saleId))
       .limit(1),
+    sale.customerId
+      ? db.select().from(customerCreditMovements).where(and(eq(customerCreditMovements.saleId, saleId), eq(customerCreditMovements.kind, "charge"))).limit(1).then((r) => r[0] ?? null)
+      : Promise.resolve(null),
   ]);
   const showCost = hasPermission(ctx, "reports.view_profit");
   return {
@@ -445,6 +489,7 @@ export async function getSale(ctx: ServiceContext, saleId: string) {
     branch: meta[0].branch,
     registerName: meta[0].registerName,
     sellerName: meta[0].sellerName,
+    credit: charge ? { amount: charge.amount, balance: charge.balanceAfter, dueDate: charge.dueDate } : null,
     showCost,
   };
 }
