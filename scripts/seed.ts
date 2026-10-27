@@ -18,8 +18,13 @@ import { ensureCatalogDefaults } from "../src/server/modules/catalog/defaults";
 import { db, pool } from "../src/server/db";
 import {
   branches,
+  categories,
   companies,
+  companyModules,
   products,
+  productSuppliers,
+  productVariants,
+  suppliers,
   taxProfiles,
   unitsOfMeasure,
   cashRegisters,
@@ -34,6 +39,7 @@ import {
 import { SYSTEM_ROLES } from "../src/server/authz/system-roles";
 import { hashPassword } from "../src/server/auth/password";
 import { provisionCompany } from "../src/server/modules/companies/provision";
+import { createSupplier } from "../src/server/modules/purchasing/service";
 
 const DEMO = {
   superadmin: { username: "superadmin", password: process.env.SEED_SUPERADMIN_PASSWORD ?? "Admin1234!" },
@@ -217,12 +223,54 @@ async function seedDemoCatalog() {
   console.log("✔ Catálogo demo: 11 productos (uno con 4 variantes) con existencias en Sucursal Centro");
 }
 
+/**
+ * Compras de demostración (idempotente): activa los módulos de compras,
+ * devoluciones, promociones y crédito, y crea dos proveedores ligados al
+ * catálogo para probar órdenes, recepciones y sugerencias.
+ */
+async function seedDemoPurchasing() {
+  const [tenant] = await db.select().from(tenants).where(eq(tenants.slug, "demo")).limit(1);
+  if (!tenant) return;
+  const [company] = await db.select().from(companies).where(eq(companies.tenantId, tenant.id)).limit(1);
+  for (const mod of ["purchases", "returns", "promotions", "credit"] as const) {
+    await db.insert(companyModules).values({ companyId: company.id, module: mod, enabled: true }).onConflictDoUpdate({ target: [companyModules.companyId, companyModules.module], set: { enabled: true } });
+  }
+  const [already] = await db.select({ id: suppliers.id }).from(suppliers).where(eq(suppliers.companyId, company.id)).limit(1);
+  if (already) {
+    console.log("· Proveedores demo ya existen");
+    return;
+  }
+  const [owner] = await db.select().from(users).where(and(eq(users.tenantId, tenant.id), eq(users.username, DEMO.owner.username))).limit(1);
+  const [centro] = await db.select().from(branches).where(and(eq(branches.companyId, company.id), eq(branches.code, "CENTRO"))).limit(1);
+  const authz = await resolveAuthz({ userId: owner.id, tenantId: tenant.id, isSuperadmin: false, requestedCompanyId: company.id, requestedBranchId: centro.id });
+  const ctx = { ...authz, actor: { tenantId: tenant.id, userId: owner.id, companyId: company.id, branchId: centro.id, ip: null, userAgent: "seed", deviceId: "seed" } };
+  const golfo = await createSupplier(ctx, { code: "DGOLFO", name: "Distribuidora del Golfo", legalName: "Distribuidora del Golfo S.A. de C.V.", contactName: "Laura Méndez", phone: "2288001122", paymentTermsDays: 15, leadTimeDays: 3, address: { city: "Veracruz", state: "Veracruz" } });
+  const mayoreo = await createSupplier(ctx, { code: "AMX", name: "Abarrotes Mayoreo Xalapa", contactName: "Jorge Ruiz", phone: "2288003344", paymentTermsDays: 0, leadTimeDays: 2, address: { city: "Xalapa", state: "Veracruz" } });
+  const textil = await createSupplier(ctx, { code: "TEXTIL", name: "Textiles del Centro", paymentTermsDays: 30, leadTimeDays: 10 });
+  const bySupplier: Record<string, string> = { Bebidas: golfo.id, Botanas: golfo.id, Abarrotes: mayoreo.id, "Frutas y verduras": mayoreo.id, Varios: mayoreo.id, Ropa: textil.id };
+  const rows = await db
+    .select({ productId: products.id, cat: categories.name, cost: productVariants.cost })
+    .from(products)
+    .innerJoin(productVariants, eq(productVariants.productId, products.id))
+    .leftJoin(categories, eq(categories.id, products.categoryId))
+    .where(eq(products.companyId, company.id));
+  const seen = new Set<string>();
+  for (const r of rows) {
+    const supplierId = r.cat ? bySupplier[r.cat] : undefined;
+    if (!supplierId || seen.has(r.productId)) continue;
+    seen.add(r.productId);
+    await db.insert(productSuppliers).values({ tenantId: tenant.id, companyId: company.id, productId: r.productId, supplierId, isPrimary: true, lastCost: r.cost, createdBy: owner.id, updatedBy: owner.id });
+  }
+  console.log(`✔ Compras demo: módulos activos y 3 proveedores ligados a ${seen.size} productos`);
+}
+
 async function main() {
   await seedSystemRoles();
   await seedCurrencies();
   await seedPlatform();
   await seedDemo();
   await seedDemoCatalog();
+  await seedDemoPurchasing();
   console.log("\nCredenciales de demostración:");
   for (const [k, v] of Object.entries(DEMO)) console.log(`  ${k.padEnd(10)} ${v.username} / ${v.password}`);
 }

@@ -55,7 +55,10 @@ export const DOCUMENT_TYPES = [
   "quote",
   "return",
   "purchase",
+  "receipt",
+  "supplier_return",
   "transfer",
+  "count",
   "invoice",
 ] as const;
 export type DocumentType = (typeof DOCUMENT_TYPES)[number];

@@ -107,7 +107,7 @@ function VariantRow({ v, productId, kind, attributeNames, currency, canEdit, can
         </div>
         <div className="text-right">
           <p className="text-lg font-semibold">{formatCents(v.price, currency)}</p>
-          {canCost && <p className="text-xs text-muted">Costo {v.cost === null ? <Badge tone="warning">sin costo</Badge> : formatCents(v.cost, currency)}</p>}
+          {canCost && <p className="text-xs text-muted">Costo sin IVA {v.cost === null ? <Badge tone="warning">sin costo</Badge> : formatCents(v.cost, currency)}</p>}
           {trackStock && (
             <p className="text-xs text-muted">
               <Link className="link" href={`/inventario/kardex/${v.id}`}>Existencia {formatQty(total)}</Link>
@@ -125,7 +125,7 @@ function VariantRow({ v, productId, kind, attributeNames, currency, canEdit, can
             ))}
           <label className="text-sm">SKU<input className="field mt-1 font-mono" value={sku} onChange={(e) => setSku(e.target.value.toUpperCase())} /></label>
           <label className="text-sm">Precio{!canPrice && <span className="text-xs text-muted"> (sin permiso)</span>}<div className="mt-1"><MoneyInput value={price} onChange={canPrice ? setPrice : () => {}} /></div></label>
-          {canCost && <label className="text-sm">Costo<div className="mt-1"><MoneyInput value={cost} onChange={setCost} /></div></label>}
+          {canCost && <label className="text-sm">Costo sin IVA<div className="mt-1"><MoneyInput value={cost} onChange={setCost} /></div></label>}
           <label className="text-sm sm:col-span-2">Códigos de barras<input className="field mt-1" value={codes} onChange={(e) => setCodes(e.target.value)} /></label>
           {trackStock && <label className="text-sm">Existencia mínima<input className="field mt-1" inputMode="decimal" value={minStock} onChange={(e) => setMinStock(e.target.value)} /></label>}
           {trackStock && <label className="text-sm">Punto de reorden<input className="field mt-1" inputMode="decimal" value={reorderPoint} onChange={(e) => setReorderPoint(e.target.value)} /></label>}
@@ -176,7 +176,7 @@ function NewVariant({ productId, attributeNames, canCost, canStock }: { productI
         ))}
         <label className="text-sm">SKU<input className="field mt-1 font-mono" value={sku} onChange={(e) => setSku(e.target.value.toUpperCase())} /></label>
         <label className="text-sm">Precio<div className="mt-1"><MoneyInput value={price} onChange={setPrice} /></div></label>
-        {canCost && <label className="text-sm">Costo<div className="mt-1"><MoneyInput value={cost} onChange={setCost} /></div></label>}
+        {canCost && <label className="text-sm">Costo sin IVA<div className="mt-1"><MoneyInput value={cost} onChange={setCost} /></div></label>}
         <label className="text-sm">Códigos de barras<input className="field mt-1" value={codes} onChange={(e) => setCodes(e.target.value)} /></label>
         {canStock && <label className="text-sm">Existencia inicial<input className="field mt-1" inputMode="decimal" value={stock} onChange={(e) => setStock(e.target.value)} /></label>}
       </div>

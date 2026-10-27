@@ -50,13 +50,22 @@ Regla: todo producto simple tiene exactamente una variante por defecto; el inven
 | `stock_lots` | `variant_id`, `lot_number`, `expires_at`, `received_at`, `unit_cost`. |
 | `stock_serials` | `variant_id`, `serial_number`, `status`, `warehouse_id`. |
 | `stock_reservations` | `variant_id`, `warehouse_id`, `quantity`, `reference` (pedido/cotización), `expires_at`, `released_at`. |
-| `stock_transfers` + `stock_transfer_lines` | Origen, destino, estado (draft/sent/in_transit/received/cancelled), cantidades enviadas y recibidas. |
-| `stock_counts` + `stock_count_lines` | Conteo físico: teórico, contado, diferencia, estado, aprobado por. |
+| `stock_transfers` + `stock_transfer_lines` | **Implementado (4A).** Origen y destino (almacén y sucursal), estado `in_transit`/`received`/`cancelled`, cantidad enviada y recibida, costo de salida y liga a los dos movimientos del libro. |
+| `stock_counts` + `stock_count_lines` | **Implementado (4A).** Alcance (almacén o categoría), estado `open`/`applied`/`cancelled`; cada línea guarda la existencia del sistema al momento de capturar, lo contado y el movimiento de ajuste. |
 | `cost_layers` | Capas FIFO por `(warehouse_id, variant_id)`: `quantity_remaining`, `unit_cost`, `ledger_id`. Solo cuando el método de costeo es FIFO. |
 
-## 5. Compras (F4)
+## 5. Compras (F4 · implementado en 4A)
 
-`suppliers` (datos, condiciones, días de crédito), `purchase_orders` + `purchase_order_lines` (estado draft/sent/partially_received/received/cancelled), `purchase_receipts` + lines (ligan a ledger), `supplier_invoices`, `purchase_extra_costs` (flete, otros; se prorratean al costo), `supplier_returns`, `supplier_price_history`, `payables` (cuentas por pagar básicas).
+| Tabla | Propósito |
+| --- | --- |
+| `suppliers` | Clave única por empresa, datos fiscales y de contacto, dirección, `payment_terms_days` (crédito), `lead_time_days` (entrega, usado por sugerencias). |
+| `product_suppliers` | Producto ↔ proveedor; un proveedor principal por producto (índice parcial único); `last_cost` y `last_purchase_at` se actualizan en cada recepción. |
+| `purchase_orders` + `purchase_order_lines` | Estado `draft` → `sent` → `partial` → `received` (o `cancelled`); folio `OC` por empresa; costo neto y tasa de IVA por línea; cantidad pedida y recibida. |
+| `purchase_receipts` + `purchase_receipt_lines` | Entrada de mercancía (de una orden o compra directa con `purchase_order_id` nulo); factura y fecha; `extra_costs` con detalle en JSON; por línea `unit_cost` y `landed_unit_cost` (con cargos prorrateados por valor) y liga al libro. Folio `RC`. |
+| `supplier_returns` + `supplier_return_lines` | Devolución a proveedor (folio `DP`): salida `supplier_return_out` al costo de la compra o promedio; `credit_amount` con IVA. |
+| `payables` + `payable_payments` | Una cuenta por recepción con importe, saldo, vencimiento y estado; movimientos `payment` o `credit_note` (ligado a la devolución). |
+
+El historial de precios del proveedor se obtiene de `purchase_receipt_lines` (no hay tabla separada). Los folios de documentos de empresa (`OC`, `RC`, `DP`, `TR`, `CF`) usan `document_sequences` con `branch_id` nulo.
 
 ## 6. Ventas y caja (F3 base; F4 completa)
 

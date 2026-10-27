@@ -23,6 +23,7 @@ import {
   Wallet,
   Package,
   Boxes,
+  Truck,
 } from "lucide-react";
 import { cx } from "@/components/ui";
 import type { NavItem } from "./nav";
@@ -41,6 +42,7 @@ const ICONS = {
   wallet: Wallet,
   package: Package,
   boxes: Boxes,
+  truck: Truck,
 };
 
 export type ShellProps = {

@@ -6,3 +6,5 @@ export * from "./commerce-config";
 export * from "./catalog";
 export * from "./inventory";
 export * from "./sales";
+export * from "./purchasing";
+export * from "./inventory-ops";

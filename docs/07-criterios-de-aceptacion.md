@@ -35,7 +35,19 @@ Cada criterio se verifica con una prueba automatizada (U = unitaria, I = integra
 
 ## Fase 4
 
-AC-30 Promociones configurables con explicación. · AC-31 Pagos divididos. · AC-32 Clientes con historial. · AC-33 Devoluciones y cambios con o sin retorno a inventario. · AC-34 Compras con recepción parcial que afectan costo promedio. · AC-35 Ventas a crédito con límite.
+Se entrega en cuatro bloques (4A compras e inventario avanzado · 4B clientes, crédito y pagos divididos · 4C devoluciones y cambios · 4D promociones y listas de precios).
+
+| # | Criterio | Verificación | Estado |
+| --- | --- | --- | --- |
+| AC-34 | Órdenes de compra con borrador, envío autorizado, recepción parcial o total que actualiza el costo promedio con flete prorrateado; compra directa; devolución a proveedor con nota de crédito; cuentas por pagar con pagos parciales. | I: `phase4a.test.ts` (5 casos); E: `compras.mjs` | Cubierto (4A) |
+| AC-34a | Traspasos entre sucursales con mercancía en tránsito; solo el destino recibe; los faltantes quedan en bitácora; cancelar regresa al origen. | I: `phase4a.test.ts` › traspasos; E: `compras.mjs` | Cubierto (4A) |
+| AC-34b | Conteo físico completo o por categoría, a ciegas para quien cuenta, con diferencia contra la existencia del momento de captura y ajuste autorizado. | I: `phase4a.test.ts` › conteo; E: `compras.mjs` | Cubierto (4A) |
+| AC-34c | Sugerencias de compra por punto de reorden, venta de 30 días, lo ya pedido y tiempo de entrega; generan órdenes en borrador por proveedor. | I: `phase4a.test.ts` › sugerencias; E: `compras.mjs` | Cubierto (4A) |
+| AC-30 | Promociones configurables con explicación en el ticket. | — | Pendiente (4D) |
+| AC-31 | Pagos divididos en el punto de venta. | — | Pendiente (4B) |
+| AC-32 | Clientes con historial de compras. | — | Pendiente (4B) |
+| AC-33 | Devoluciones y cambios con o sin retorno a inventario. | — | Pendiente (4C) |
+| AC-35 | Ventas a crédito con límite y abonos. | — | Pendiente (4B) |
 
 ## Fase 5
 

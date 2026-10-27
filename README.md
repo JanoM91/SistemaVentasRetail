@@ -2,11 +2,12 @@
 
 Plataforma SaaS de gestión comercial para negocios retail: punto de venta, inventario, clientes, promociones y analítica, multiempresa y preparada para operar sin internet. Producto de Exkalibur Consulting (nombre comercial pendiente).
 
-**Estado: Fase 3 — primer producto funcional.**
+**Estado: Fase 4 en curso — bloque 4A (compras e inventario avanzado) entregado.**
 
 - **Fase 2 (base):** autenticación, cuentas (tenants), empresas, sucursales, almacenes, cajas, usuarios, roles y permisos, módulos activables, configuración y bitácora.
 - **Fase 3 (vender):** catálogo con variantes y códigos de barras, inventario con libro inmutable y costo promedio, caja con cortes X y Z, punto de venta táctil con ticket de 80 mm, venta **sin internet** con sincronización sin duplicados, app instalable (PWA).
-- **Siguiente (Fase 4):** compras, traspasos, devoluciones, pagos divididos, clientes, crédito y promociones. Ver `docs/09-roadmap.md` y el reporte `docs/11-entrega-fase-3.md`.
+- **Fase 4A (comprar y mover):** proveedores, órdenes de compra con autorización, recepción parcial con flete prorrateado al costo, compra directa, devolución a proveedor con nota de crédito, cuentas por pagar, sugerencias de compra, traspasos entre sucursales con tránsito y conteo físico.
+- **Siguiente (4B–4D):** clientes, crédito y pagos divididos; devoluciones y cambios; promociones y listas de precios. Ver `docs/12-estado-y-pendientes.md`.
 
 ## Stack
 
@@ -52,7 +53,7 @@ Resultado esperado: en `http://localhost:3000/login` puedes entrar con las crede
 | `gerente` | `Gerente1234!` | Gerente (solo Sucursal Centro) | demo |
 | `cajero` | `Cajero1234!` | Cajero (solo Sucursal Centro) | demo |
 
-Las semillas cargan además un catálogo demo (bebidas, botanas, abarrotes, granel y una playera con tallas y colores) con existencias en «Sucursal Centro». Para vender: entra como `cajero`, abre la caja en **Caja** y ve a **Punto de venta**; prueba escanear `7500000000011`.
+Las semillas cargan además un catálogo demo (bebidas, botanas, abarrotes, granel y una playera con tallas y colores) con existencias en «Sucursal Centro», y tres proveedores ligados a esos productos (Distribuidora del Golfo, Abarrotes Mayoreo Xalapa, Textiles del Centro) con los módulos de compras, devoluciones, promociones y crédito activos. Para vender: entra como `cajero`, abre la caja en **Caja** y ve a **Punto de venta**; prueba escanear `7500000000011`. Para comprar: entra como `gerente` → **Compras** → **Sugerencias** o **Nueva orden**.
 
 Estas contraseñas son públicas (el repositorio es público). **Nunca siembres un entorno real con ellas:** define `SEED_*_PASSWORD` propias antes de `npm run db:seed`.
 
@@ -65,7 +66,7 @@ Estas contraseñas son públicas (el repositorio es público). **Nunca siembres 
 | `npm run typecheck` | Verifica tipos con TypeScript. |
 | `npm run lint` | ESLint. |
 | `npm test` | Pruebas unitarias e integración (necesita `TEST_DATABASE_URL` en `.env.test`; la base se vacía en cada corrida). |
-| `npm run test:e2e` | Recorridos extremo a extremo con Playwright contra un servidor en marcha (`BASE_URL`, por defecto `http://localhost:3100`) y una base recién sembrada (`npm run db:reset`): POS en línea y sin conexión, sincronización y corte Z; administración. |
+| `npm run test:e2e` | Recorridos extremo a extremo con Playwright contra un servidor en marcha (`BASE_URL`, por defecto `http://localhost:3100`) y una base recién sembrada (`npm run db:reset`): POS en línea y sin conexión, sincronización y corte Z; administración; compras, traspasos y conteo. |
 | `npm run stock:verify` | Recalcula existencias desde el libro de inventario y las compara con los saldos (sale con código 1 si hay diferencias). |
 | `npm run check` | typecheck + lint + test + build. |
 | `npm run db:generate` | Genera una migración SQL a partir de los cambios en `src/server/db/schema`. |
@@ -105,6 +106,14 @@ También puedes ejecutar la app en cualquier host con Docker: `docker compose --
 El POS guarda en el dispositivo la pantalla, el catálogo de la sucursal y una cola de ventas. Sin internet se puede vender en efectivo (incluso recargando la página); el ticket sale con folio «PENDIENTE» y al volver la red las ventas se envían solas. El servidor reconoce cada venta por su identificador, así que reintentos o envíos repetidos nunca la duplican. Lo que no cuadra (precio cambiado, inventario negativo, turno ya cerrado) se registra y queda marcado en **Ventas → Con observaciones**. Detalles en `docs/adr/ADR-004-venta-offline-idempotente.md`.
 
 Para usarlo como app: iPhone → Safari → Compartir → «Agregar a pantalla de inicio»; Android → Chrome → ⋮ → «Instalar app». Ábrelo una vez con internet en cada dispositivo para que quede disponible sin conexión.
+
+## Compras e inventario entre sucursales
+
+- **Orden de compra:** se guarda como borrador; quien tiene «Autorizar compras» la envía y ya no se edita. Se recibe en una o varias entregas; si el proveedor no completa, se cierra con faltantes.
+- **Costo:** los costos se capturan **sin IVA**. Flete, maniobras u otros cargos se reparten entre los productos según su valor, y ese costo final alimenta el costo promedio y la utilidad.
+- **Cuentas por pagar:** cada recepción crea su cuenta con vencimiento según los días de crédito del proveedor; admite pagos parciales y las devoluciones se abonan como nota de crédito.
+- **Traspasos:** la mercancía sale del origen al enviar y queda en tránsito; solo la sucursal destino confirma lo que llegó y los faltantes quedan en la bitácora.
+- **Conteo físico:** quien cuenta no ve la existencia del sistema; el supervisor revisa diferencias y las aplica como ajuste. Se puede seguir vendiendo durante el conteo.
 
 ## Seguridad (resumen)
 

@@ -1,13 +1,13 @@
 # 12 · Estado del producto y pendientes
 
-Fecha: 2026-10-27 · Base: prompt maestro (15 módulos y 18 criterios de aceptación) contra lo entregado en las Fases 1–3.
+Fecha: 2026-10-27 (actualizado con el bloque 4A) · Base: prompt maestro (15 módulos y 18 criterios de aceptación) contra lo entregado en las Fases 1–3 y 4A.
 
 ## 1. Dónde vive el proyecto
 
 | Lugar | Ruta | Estado |
 | --- | --- | --- |
 | Carpeta local de Jano | `~/ExKalibur Consulting/SistemaDeVentas ExkCon` | Migrada el 2026-10-27: 3 commits, árbol limpio, remoto `origin` configurado. |
-| GitHub | https://github.com/JanoM91/SistemaVentasRetail (público) | Pendiente del primer `git push`. |
+| GitHub | https://github.com/JanoM91/SistemaVentasRetail (público) | Publicado; CI en verde (Fase 3). 4A se entrega como commit nuevo. |
 | Base de datos (Supabase) | — | Pendiente: confirmación de costo. |
 | Despliegue (Vercel) | — | Pendiente: conectar al repo después del push. |
 
@@ -32,7 +32,7 @@ Fecha: 2026-10-27 · Base: prompt maestro (15 módulos y 18 criterios de aceptac
 | 15 | Sin botones principales sin función | Cumplido en lo entregado |
 | 16 | Sin datos falsos para simular integraciones | Cumplido (aún no hay integraciones) |
 | 17 | Datos de prueba, documentación, credenciales demo | Cumplido |
-| 18 | Pruebas unitarias, de integración y de flujos críticos | Cumplido (64 + 2 recorridos E2E) |
+| 18 | Pruebas unitarias, de integración y de flujos críticos | Cumplido (71 + 3 recorridos E2E) |
 
 Resultado: 12 cumplidos, 2 parciales, 4 pendientes.
 
@@ -42,9 +42,9 @@ Resultado: 12 cumplidos, 2 parciales, 4 pendientes.
 | --- | --- | --- |
 | 1 Administración | Empresas, sucursales, almacenes, cajas, usuarios, roles, módulos activables, regional, parámetros | Edición de impuestos, series y métodos de pago; listas de precios; ubicaciones internas; notificaciones |
 | 2 Usuarios y permisos | Completo (70 permisos, bitácora, autorización en caliente) | — |
-| 3 Catálogo | Simples y variantes, códigos múltiples, categorías, marcas, unidades, favoritos | Imágenes, importación desde archivo, proveedores por producto, relacionados/sustitutos, peso y dimensiones |
-| 4 Inventario y costos | Libro inmutable, costo promedio, ajustes, mermas, kardex, alertas, valor | Traspasos, conteo físico, reservas, lotes/caducidad/series, FIFO, conversiones de unidad, sugerencias de compra, rotación |
-| 5 Compras y proveedores | — | Todo |
+| 3 Catálogo | Simples y variantes, códigos múltiples, categorías, marcas, unidades, favoritos, proveedor principal y último costo (automático al comprar) | Imágenes, importación desde archivo, edición manual de proveedores por producto, relacionados/sustitutos, peso y dimensiones |
+| 4 Inventario y costos | Libro inmutable, costo promedio, ajustes, mermas, kardex, alertas, valor, traspasos con tránsito, conteo físico a ciegas, sugerencias de compra | Reservas, lotes/caducidad/series, FIFO, conversiones de unidad, rotación |
+| 5 Compras y proveedores | Proveedores, órdenes (borrador → enviada → parcial → cerrada), recepción con flete prorrateado, compra directa, devolución con nota de crédito, cuentas por pagar con pagos parciales, historial de costos | Varias facturas por recepción, anticipos, conversión de unidades de compra (caja → pieza), importación XML de CFDI de proveedor |
 | 6 Punto de venta | Venta táctil, escaneo, variantes, granel, descuentos autorizados, en espera, ticket, cancelación, cortes | Cotizaciones, venta a crédito, pago dividido en pantalla, asociar cliente, envío de ticket por WhatsApp/correo |
 | 7 Canales y pedidos | — | Todo |
 | 8 Métodos de pago | Efectivo, tarjeta y transferencia con referencia manual | Pago dividido en pantalla, terminal integrada, QR, tarjetas de regalo, saldo, puntos |
@@ -58,6 +58,6 @@ Resultado: 12 cumplidos, 2 parciales, 4 pendientes.
 
 ## 4. Roadmap restante
 
-- **Fase 4 · Operación comercial:** compras y proveedores, traspasos, devoluciones y cambios, pagos divididos, clientes, crédito, promociones y listas de precios, pantalla de revisión de ventas con observaciones.
+- **Fase 4 · Operación comercial:** ~~4A compras, proveedores, traspasos, conteos y sugerencias~~ (entregado) · 4B clientes, crédito y pagos divididos · 4C devoluciones y cambios · 4D promociones, cupones, listas de precios, métodos de pago e impuestos editables y revisión de ventas con observaciones.
 - **Fase 5 · Crecimiento y analítica:** reportes y dashboard, exportaciones, facturación CFDI, pedidos omnicanal y ecommerce, lealtad, integraciones.
 - **Transversal:** despliegue (Supabase + Vercel), primer cliente piloto, impresión térmica directa, carrito deslizable en celular.

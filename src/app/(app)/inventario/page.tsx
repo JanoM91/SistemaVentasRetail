@@ -5,6 +5,7 @@ import { requirePagePermission } from "@/server/context";
 import { hasPermission } from "@/server/authz/guard";
 import { listAccessibleWarehouses, listStock } from "@/server/modules/inventory/service";
 import { formatCents, formatQty } from "@/lib/money";
+import { InventarioTabs } from "./tabs";
 
 export const metadata: Metadata = { title: "Inventario" };
 
@@ -35,6 +36,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
         description="Existencias por almacén. Cada cambio queda en el kardex y no se puede borrar."
         actions={hasPermission(ctx, "inventory.adjust") && <ButtonLink href={`/inventario/movimiento?alm=${wh.id}`}>Registrar movimiento</ButtonLink>}
       />
+      <InventarioTabs active="/inventario" />
       <Card className="mb-4">
         <form method="get" className="grid gap-3 sm:grid-cols-[220px_1fr_auto_auto]">
           <select name="alm" defaultValue={wh.id} className="field" aria-label="Almacén">

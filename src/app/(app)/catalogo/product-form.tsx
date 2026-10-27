@@ -236,7 +236,7 @@ export function ProductCreateForm({
               <MoneyInput value={price} onChange={setPrice} />
             </Field>
             {canCost && (
-              <Field label="Costo unitario" hint="Sin costo, la utilidad se marca incompleta." error={fieldErr("variants.0.cost")}>
+              <Field label="Costo unitario (sin IVA)" hint="Sin costo, la utilidad se marca incompleta. Se actualiza solo con cada compra." error={fieldErr("variants.0.cost")}>
                 <MoneyInput value={cost} onChange={setCost} />
               </Field>
             )}
@@ -274,7 +274,7 @@ export function ProductCreateForm({
           </div>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <Field label="Precio base para nuevas variantes"><MoneyInput value={price} onChange={setPrice} /></Field>
-            {canCost && <Field label="Costo base para nuevas variantes"><MoneyInput value={cost} onChange={setCost} /></Field>}
+            {canCost && <Field label="Costo base para nuevas variantes (sin IVA)"><MoneyInput value={cost} onChange={setCost} /></Field>}
           </div>
 
           {rows.length > 0 && (

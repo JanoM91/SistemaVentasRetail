@@ -1,12 +1,11 @@
 import { and, desc, eq, gte, inArray, lte, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
-import { db, type DbOrTx, type Tx } from "@/server/db";
+import { db, type Tx } from "@/server/db";
 import {
   branches,
   cashRegisters,
   cashSessions,
   companies,
-  documentSequences,
   inventoryLedger,
   paymentMethods,
   payments,
@@ -29,6 +28,7 @@ import { postMovement } from "@/server/modules/inventory/ledger";
 import { allowsNegative, getDefaultWarehouse, variantLabel } from "@/server/modules/inventory/service";
 import { getAccessibleRegister, getOpenSession } from "@/server/modules/cash/service";
 import { verifyAuthorizer } from "@/server/modules/auth/service";
+import { nextFolio } from "@/server/modules/sequences";
 
 // ---------------------------------------------------------------- Entrada
 
@@ -72,30 +72,6 @@ export type CreateSaleResult =
   | { status: "duplicate"; sale: typeof sales.$inferSelect; flags: SaleFlag[] };
 
 // ---------------------------------------------------------------- Folios
-
-/** Toma el siguiente folio de venta de la sucursal (bloquea la fila de la serie). */
-export async function nextFolio(tx: DbOrTx, input: { tenantId: string; companyId: string; branchId: string }) {
-  await tx
-    .insert(documentSequences)
-    .values({ tenantId: input.tenantId, companyId: input.companyId, branchId: input.branchId, documentType: "sale", series: "V" })
-    .onConflictDoNothing();
-  const [seq] = await tx
-    .select()
-    .from(documentSequences)
-    .where(
-      and(
-        eq(documentSequences.companyId, input.companyId),
-        eq(documentSequences.branchId, input.branchId),
-        sql`${documentSequences.cashRegisterId} is null`,
-        eq(documentSequences.documentType, "sale"),
-      ),
-    )
-    .orderBy(documentSequences.createdAt)
-    .limit(1)
-    .for("update");
-  await tx.update(documentSequences).set({ nextNumber: seq.nextNumber + 1, updatedAt: new Date() }).where(eq(documentSequences.id, seq.id));
-  return { series: seq.series, number: seq.nextNumber, folio: `${seq.series}-${String(seq.nextNumber).padStart(seq.padding, "0")}` };
-}
 
 // ---------------------------------------------------------------- Alta de venta
 
@@ -222,7 +198,7 @@ export async function createSale(ctx: ServiceContext, raw: unknown, opts: { orig
       const [lockedSession] = await tx.select().from(cashSessions).where(eq(cashSessions.id, session!.id)).for("update");
       if (lockedSession.status === "closed" && !offline) throw new ConflictError("El turno se cerró mientras registrabas la venta. Abre la caja de nuevo.");
 
-      const folio = await nextFolio(tx, { tenantId: ctx.tenantId, companyId: company.id, branchId: reg.branchId });
+      const folio = await nextFolio(tx, { tenantId: ctx.tenantId, companyId: company.id, branchId: reg.branchId, documentType: "sale" });
       const negativeOk = offline ? true : allowsNegative(ctx, warehouse);
       const lineCosts: Array<number | null> = [];
       for (const c of computed) {

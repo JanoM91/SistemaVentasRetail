@@ -132,7 +132,7 @@ export async function postMovement(tx: DbOrTx, m: PostMovementInput) {
 
 /** Tipos que solo suman, solo restan o pueden ir en ambos sentidos. */
 export const INBOUND_TYPES: readonly MovementType[] = ["opening", "purchase_in", "adjustment_in", "sale_cancel_in", "return_in", "transfer_in"];
-export const OUTBOUND_TYPES: readonly MovementType[] = ["adjustment_out", "shrinkage", "damaged", "expired", "sale_out", "transfer_out"];
+export const OUTBOUND_TYPES: readonly MovementType[] = ["adjustment_out", "shrinkage", "damaged", "expired", "sale_out", "transfer_out", "supplier_return_out"];
 
 export const MOVEMENT_LABELS: Record<MovementType, string> = {
   opening: "Existencia inicial",
@@ -145,6 +145,7 @@ export const MOVEMENT_LABELS: Record<MovementType, string> = {
   sale_out: "Venta",
   sale_cancel_in: "Cancelación de venta",
   return_in: "Devolución de cliente",
+  supplier_return_out: "Devolución a proveedor",
   transfer_out: "Traspaso (salida)",
   transfer_in: "Traspaso (entrada)",
   count_adjustment: "Ajuste por conteo",

@@ -101,7 +101,7 @@ export default async function SettingsPage() {
                 {sequences.map(({ seq, branchName }) => (
                   <tr key={seq.id}>
                     <td>{branchName ?? "Empresa"}</td>
-                    <td>{{ sale: "Venta", quote: "Cotización", return: "Devolución", purchase: "Compra", transfer: "Traspaso", invoice: "Factura" }[seq.documentType]}</td>
+                    <td>{{ sale: "Venta", quote: "Cotización", return: "Devolución", purchase: "Orden de compra", receipt: "Recepción de compra", supplier_return: "Devolución a proveedor", transfer: "Traspaso", count: "Conteo físico", invoice: "Factura" }[seq.documentType]}</td>
                     <td className="font-mono text-xs">{seq.series}</td>
                     <td className="font-mono text-xs">{String(seq.nextNumber).padStart(seq.padding, "0")}</td>
                   </tr>

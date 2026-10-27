@@ -29,6 +29,7 @@ export const MOVEMENT_TYPES = [
   "sale_out", //          venta
   "sale_cancel_in", //    cancelación de venta (compensatorio)
   "return_in", //         devolución de cliente (F4)
+  "supplier_return_out", // devolución a proveedor (F4)
   "transfer_out", //      traspaso salida (F4)
   "transfer_in", //       traspaso entrada (F4)
   "count_adjustment", //  ajuste por conteo físico (F4)
