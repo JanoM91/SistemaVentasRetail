@@ -17,6 +17,7 @@ export async function updateSettingsAction(_p: ActionResult<unknown> | null, for
       promotions: { allowStacking: checkbox(o.promotions?.allowStacking), maxDiscountPercent: o.promotions?.maxDiscountPercent },
       pos: { allowSaleWithoutCustomer: checkbox(o.pos?.allowSaleWithoutCustomer), requireCustomerForCredit: checkbox(o.pos?.requireCustomerForCredit) },
       notifications: { lowStockEmail: o.notifications?.lowStockEmail ?? "" },
+      returns: { maxDays: o.returns?.maxDays ?? 30, allowWithoutTicket: checkbox(o.returns?.allowWithoutTicket), cashRefundNeedsAuthorization: checkbox(o.returns?.cashRefundNeedsAuthorization) },
     });
     revalidatePath("/configuracion");
     return { ok: true, data: null };

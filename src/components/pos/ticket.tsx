@@ -130,3 +130,60 @@ export function AbonoTicket({ t }: { t: AbonoTicketData }) {
     </div>
   );
 }
+
+export type ReturnTicketData = {
+  company: TicketData["company"];
+  branchName: string;
+  folio: string;
+  saleFolio: string | null;
+  createdAt: string | Date;
+  timezone: string;
+  currency: string;
+  cashierName: string;
+  customerName?: string | null;
+  lines: Array<{ description: string; quantity: number; total: number; restock: boolean }>;
+  total: number;
+  refundLabel: string;
+  /** Si se entregó vale: su folio es el de la devolución. */
+  voucher?: { balance: number } | null;
+};
+
+/** Comprobante de devolución (80 mm). Si se entregó vale, el folio sirve para canjearlo. */
+export function ReturnTicket({ t }: { t: ReturnTicketData }) {
+  const when = new Intl.DateTimeFormat("es-MX", { timeZone: t.timezone, dateStyle: "short", timeStyle: "short" }).format(new Date(t.createdAt));
+  const money = (c: number) => formatCents(c, t.currency);
+  return (
+    <div className="ticket mx-auto p-3" data-testid="return-ticket">
+      <div className="text-center">
+        <p className="text-sm font-bold">{t.company.tradeName}</p>
+        {t.company.taxId && <p>RFC {t.company.taxId}</p>}
+        <p>{t.branchName}</p>
+      </div>
+      <hr className="my-2 border-dashed border-black" />
+      <p className="text-center font-bold">{t.voucher ? "DEVOLUCIÓN · VALE" : "COMPROBANTE DE DEVOLUCIÓN"}</p>
+      <p>Folio: <b>{t.folio}</b></p>
+      {t.saleFolio ? <p>Venta original: {t.saleFolio}</p> : <p>Sin ticket de venta</p>}
+      <p>{when}</p>
+      <p>Atendió: {t.cashierName}</p>
+      {t.customerName && <p>Cliente: {t.customerName}</p>}
+      <hr className="my-2 border-dashed border-black" />
+      {t.lines.map((l, i) => (
+        <div key={i} className="mb-1">
+          <p>{l.description}{!l.restock && " (merma)"}</p>
+          <div className="flex justify-between"><span>{formatQty(l.quantity)} pza.</span><span>{money(l.total)}</span></div>
+        </div>
+      ))}
+      <hr className="my-2 border-dashed border-black" />
+      <div className="flex justify-between text-sm font-bold"><span>TOTAL DEVUELTO</span><span>{money(t.total)}</span></div>
+      <p>Reembolso: {t.refundLabel}</p>
+      {t.voucher && (
+        <>
+          <hr className="my-2 border-dashed border-black" />
+          <p className="text-center text-sm font-bold">VALE {t.folio}</p>
+          <p className="text-center">Saldo disponible: {money(t.voucher.balance)}</p>
+          <p className="text-center">Preséntelo al pagar. Se puede usar en varias compras.</p>
+        </>
+      )}
+    </div>
+  );
+}

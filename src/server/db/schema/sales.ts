@@ -32,6 +32,8 @@ export type CashSummary = {
   cancelledTotal: number;
   byMethod: Array<{ methodId: string; name: string; kind: PaymentKind; amount: number; count: number }>;
   cashSales: number;
+  /** Devoluciones del turno: reembolsado por forma (opcional en cortes anteriores a 4C). */
+  refunds?: { count: number; total: number; cash: number; original: number; customerAccount: number; storeCredit: number };
   /** Abonos de clientes recibidos en el turno, por método (opcional en cortes anteriores a 4B). */
   creditPayments?: Array<{ methodId: string; name: string; kind: PaymentKind; amount: number; count: number }>;
   cashCreditPayments?: number;

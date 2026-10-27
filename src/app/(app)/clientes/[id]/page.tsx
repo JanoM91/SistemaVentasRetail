@@ -16,7 +16,7 @@ import { AdjustmentForm, BackofficePaymentForm, CreditTermsForm } from "./credit
 
 export const metadata: Metadata = { title: "Cliente" };
 
-const KIND = { charge: "Compra a crédito", payment: "Abono", reversal: "Cancelación", adjustment: "Ajuste" } as const;
+const KIND = { charge: "Compra a crédito", payment: "Abono", reversal: "Cancelación", adjustment: "Ajuste", return: "Devolución" } as const;
 
 export default async function CustomerPage({ params }: { params: Promise<{ id: string }> }) {
   const ctx = await requirePagePermission("customers.view");

@@ -9,6 +9,7 @@ import {
   customerCreditMovements,
   customers,
   inventoryLedger,
+  saleReturns,
   paymentMethods,
   payments,
   products,
@@ -30,6 +31,7 @@ import { postMovement } from "@/server/modules/inventory/ledger";
 import { allowsNegative, getDefaultWarehouse, variantLabel } from "@/server/modules/inventory/service";
 import { getAccessibleRegister, getOpenSession } from "@/server/modules/cash/service";
 import { bumpPurchaseStats, checkCreditSale, postCreditCharge, reverseCreditCharge } from "@/server/modules/customers/service";
+import { getStoreCredit, redeemStoreCredits, reverseRedemptions } from "@/server/modules/returns/service";
 import { verifyAuthorizer } from "@/server/modules/auth/service";
 import { nextFolio } from "@/server/modules/sequences";
 
@@ -191,12 +193,24 @@ export async function createSale(ctx: ServiceContext, raw: unknown, opts: { orig
       if (received < p.amount) throw new ValidationError({ [`payments.${i}.received`]: ["El efectivo recibido es menor al importe."] }, "El efectivo recibido es menor al importe.");
       return { m, amount: p.amount, received, change: received - p.amount, reference: p.reference || null };
     }
+    if (m.kind === "prepaid") {
+      if (!p.reference) throw new ValidationError({ [`payments.${i}.reference`]: ["Captura el folio del vale."] }, "Captura el folio del vale.");
+      return { m, amount: p.amount, received: null, change: 0, reference: p.reference.trim().toUpperCase() };
+    }
     if (m.requiresReference && !p.reference) throw new ValidationError({ [`payments.${i}.reference`]: [`${m.name} requiere número de referencia o autorización.`] }, `${m.name} requiere número de referencia o autorización.`);
     return { m, amount: p.amount, received: null, change: 0, reference: p.reference || null };
   });
   const paid = paymentRows.reduce((a, p) => a + p.amount, 0);
   if (paid !== totals.total) throw new DomainError("payment_mismatch", `Los pagos (${(paid / 100).toFixed(2)}) no cuadran con el total (${(totals.total / 100).toFixed(2)}).`, 422);
   const change = paymentRows.reduce((a, p) => a + p.change, 0);
+
+  // --- Vales de devolución
+  const voucherRows = paymentRows.filter((p) => p.m.kind === "prepaid");
+  for (const v of voucherRows) {
+    const credit = await getStoreCredit(ctx, v.reference!).catch(() => null);
+    if (!credit) throw new ValidationError({ payments: [`El vale ${v.reference} no existe.`] }, `El vale ${v.reference} no existe.`);
+    if (credit.balance < v.amount) throw new ConflictError(`El vale ${credit.folio} solo tiene ${(credit.balance / 100).toFixed(2)} disponibles.`);
+  }
 
   // --- Cliente y crédito
   let customer: typeof customers.$inferSelect | null = null;
@@ -325,6 +339,7 @@ export async function createSale(ctx: ServiceContext, raw: unknown, opts: { orig
         })),
       );
 
+      if (voucherRows.length) await redeemStoreCredits(tx, ctx, sale.id, voucherRows.map((v) => ({ folio: v.reference!, amount: v.amount })));
       if (customer) await bumpPurchaseStats(tx, customer.id, 1, totals.total, soldAt);
       if (creditAmount > 0 && customer) {
         const charge = await postCreditCharge(tx, ctx, { customerId: customer.id, saleId: sale.id, folio: sale.folio, branchId: reg.branchId, amount: creditAmount, soldAt, authorizedBy: creditAuthorizedBy, enforceLimit: !creditAuthorizedBy });
@@ -398,6 +413,8 @@ export async function cancelSale(ctx: ServiceContext, saleId: string, raw: unkno
     const [locked] = await tx.select().from(sales).where(eq(sales.id, saleId)).for("update");
     if (locked.status !== "completed") throw new ConflictError("La venta ya está cancelada.");
     const [session] = await tx.select().from(cashSessions).where(eq(cashSessions.id, locked.cashSessionId)).for("update");
+    const [hasReturn] = await tx.select({ id: saleReturns.id }).from(saleReturns).where(eq(saleReturns.saleId, saleId)).limit(1);
+    if (hasReturn) throw new ConflictError("La venta tiene devoluciones registradas; ya no se puede cancelar.");
     if (session.status !== "open") throw new ConflictError("La venta pertenece a un turno cerrado. Regístrala como devolución.");
     await reverseSaleInventory(tx, ctx, locked);
     const [after] = await tx
@@ -406,6 +423,7 @@ export async function cancelSale(ctx: ServiceContext, saleId: string, raw: unkno
       .where(eq(sales.id, saleId))
       .returning();
     await tx.update(payments).set({ status: "refunded" }).where(eq(payments.saleId, saleId));
+    await reverseRedemptions(tx, saleId);
     if (locked.customerId) {
       await bumpPurchaseStats(tx, locked.customerId, -1, locked.total, locked.soldAt);
       await reverseCreditCharge(tx, ctx, locked);
@@ -460,7 +478,7 @@ async function getSaleRow(ctx: ServiceContext, saleId: string) {
 
 export async function getSale(ctx: ServiceContext, saleId: string) {
   const sale = await getSaleRow(ctx, saleId);
-  const [lines, pays, meta, charge] = await Promise.all([
+  const [lines, pays, meta, charge, rets] = await Promise.all([
     db.select().from(saleLines).where(eq(saleLines.saleId, saleId)).orderBy(saleLines.lineNo),
     db
       .select({ p: payments, methodName: paymentMethods.name })
@@ -479,6 +497,7 @@ export async function getSale(ctx: ServiceContext, saleId: string) {
     sale.customerId
       ? db.select().from(customerCreditMovements).where(and(eq(customerCreditMovements.saleId, saleId), eq(customerCreditMovements.kind, "charge"))).limit(1).then((r) => r[0] ?? null)
       : Promise.resolve(null),
+    db.select({ id: saleReturns.id, folio: saleReturns.folio, total: saleReturns.total, refundMethod: saleReturns.refundMethod, createdAt: saleReturns.createdAt }).from(saleReturns).where(eq(saleReturns.saleId, saleId)).orderBy(saleReturns.createdAt),
   ]);
   const showCost = hasPermission(ctx, "reports.view_profit");
   return {
@@ -490,6 +509,7 @@ export async function getSale(ctx: ServiceContext, saleId: string) {
     registerName: meta[0].registerName,
     sellerName: meta[0].sellerName,
     credit: charge ? { amount: charge.amount, balance: charge.balanceAfter, dueDate: charge.dueDate } : null,
+    returns: rets,
     showCost,
   };
 }

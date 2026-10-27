@@ -91,7 +91,18 @@ export default async function SalePage({ params }: { params: Promise<{ id: strin
               </div>
             ))}
           </Card>
-          {s.status === "completed" && (
+          {d.returns.length > 0 && (
+            <Card title="Devoluciones">
+              {d.returns.map((r) => (
+                <div key={r.id} className="flex justify-between border-b border-border py-2 text-sm last:border-0">
+                  <span><Link className="link font-mono" href={`/ventas/devoluciones/${r.id}`}>{r.folio}</Link> <span className="text-muted">· {formatDateTime(r.createdAt)}</span></span>
+                  <span className="font-medium">−{formatCents(r.total, cur)}</span>
+                </div>
+              ))}
+              <p className="mt-2 text-xs text-muted">Para devolver más productos usa «Devolución» en el punto de venta con el folio {s.folio}.</p>
+            </Card>
+          )}
+          {s.status === "completed" && d.returns.length === 0 && (
             <Card title="Cancelar venta">
               <p className="mb-3 text-sm text-muted">Solo ventas del turno abierto. El inventario regresa automáticamente y el efectivo se descuenta del esperado.</p>
               <AppForm action={cancelSaleAction} successMessage="Venta cancelada.">

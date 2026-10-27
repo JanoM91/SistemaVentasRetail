@@ -46,7 +46,7 @@ Se entrega en cuatro bloques (4A compras e inventario avanzado · 4B clientes, c
 | AC-30 | Promociones configurables con explicación en el ticket. | — | Pendiente (4D) |
 | AC-31 | Pagos divididos en el punto de venta (varios métodos; solo el efectivo da cambio; el corte separa por método). | I: `phase4b.test.ts` › pago dividido; E: `clientes.mjs` (tarjeta + crédito) | Cubierto (4B) |
 | AC-32 | Clientes con datos fiscales, grupos, segmentos, consentimiento de marketing, historial de compras y productos frecuentes; alta rápida desde caja. | I: `phase4b.test.ts` › alta de clientes, cancelación e historial; E: `clientes.mjs` | Cubierto (4B) |
-| AC-33 | Devoluciones y cambios con o sin retorno a inventario. | — | Pendiente (4C) |
+| AC-33 | Devoluciones parciales o totales con y sin ticket, importe proporcional a lo cobrado, retorno a inventario o merma por línea; reembolso en efectivo, al medio original, a la cuenta del cliente o con vale; cambios con vale aplicado a la nueva venta; política de días y autorizaciones; corte de caja con devoluciones. | I: `phase4c.test.ts` (5 casos); E: `devoluciones.mjs` | Cubierto (4C) |
 | AC-35 | Ventas a crédito con límite, días y bloqueo; autorización de gerente fuera de límite o con vencidos; estado de cuenta inmutable con antigüedad PEPS; abonos en caja que entran al corte; cuentas por cobrar por antigüedad. | U/I: `phase4b.test.ts` (antigüedad, crédito, abonos, offline); E: `clientes.mjs` | Cubierto (4B) |
 
 ## Fase 5

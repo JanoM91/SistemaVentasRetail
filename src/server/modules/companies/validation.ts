@@ -71,6 +71,13 @@ export const companySettingsSchema = z.object({
     allowSaleWithoutCustomer: z.boolean().default(true),
     requireCustomerForCredit: z.boolean().default(true),
   }),
+  returns: z
+    .object({
+      maxDays: z.coerce.number().int().min(0).max(365).default(30),
+      allowWithoutTicket: z.boolean().default(true),
+      cashRefundNeedsAuthorization: z.boolean().default(true),
+    })
+    .default({ maxDays: 30, allowWithoutTicket: true, cashRefundNeedsAuthorization: true }),
   notifications: z.object({
     lowStockEmail: z.string().trim().email("Correo inválido").optional().or(z.literal("")).nullable(),
   }),

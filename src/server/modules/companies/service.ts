@@ -118,6 +118,7 @@ export async function updateCompanySettings(ctx: ServiceContext, companyId: stri
       inventory: input.inventory,
       promotions: input.promotions,
       pos: input.pos,
+      returns: input.returns,
       notifications: { lowStockEmail: input.notifications.lowStockEmail || null },
     };
     const [after] = await tx

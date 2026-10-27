@@ -1,6 +1,6 @@
 # 12 · Estado del producto y pendientes
 
-Fecha: 2026-10-27 (actualizado con los bloques 4A y 4B) · Base: prompt maestro (15 módulos y 18 criterios de aceptación) contra lo entregado en las Fases 1–3, 4A y 4B.
+Fecha: 2026-10-27 (actualizado con los bloques 4A, 4B y 4C) · Base: prompt maestro (15 módulos y 18 criterios de aceptación) contra lo entregado en las Fases 1–3 y 4A–4C.
 
 ## 1. Dónde vive el proyecto
 
@@ -23,7 +23,7 @@ Fecha: 2026-10-27 (actualizado con los bloques 4A y 4B) · Base: prompt maestro 
 | 6 | Promociones configurables | **Pendiente** (hoy solo descuento manual por línea) |
 | 7 | Pagos divididos | Cumplido (4B) |
 | 8 | Clientes e historial | Cumplido (4B) |
-| 9 | Devoluciones y cambios | **Pendiente** (hoy solo cancelación dentro del turno) |
+| 9 | Devoluciones y cambios | Cumplido (4C) |
 | 10 | Control de cajas y cortes | Cumplido (F3) |
 | 11 | Costos, margen y utilidad | **Parcial**: por venta y en el inventario; falta el reporte |
 | 12 | Reportes por sucursal y periodo | **Pendiente** (hoy: lista de ventas del día y corte de caja) |
@@ -32,9 +32,9 @@ Fecha: 2026-10-27 (actualizado con los bloques 4A y 4B) · Base: prompt maestro 
 | 15 | Sin botones principales sin función | Cumplido en lo entregado |
 | 16 | Sin datos falsos para simular integraciones | Cumplido (aún no hay integraciones) |
 | 17 | Datos de prueba, documentación, credenciales demo | Cumplido |
-| 18 | Pruebas unitarias, de integración y de flujos críticos | Cumplido (81 + 4 recorridos E2E) |
+| 18 | Pruebas unitarias, de integración y de flujos críticos | Cumplido (86 + 5 recorridos E2E) |
 
-Resultado: 14 cumplidos, 1 parcial (utilidad: falta reporte), 3 pendientes (promociones, devoluciones, reportes).
+Resultado: 15 cumplidos, 1 parcial (utilidad: falta reporte), 2 pendientes (promociones, reportes).
 
 ## 3. Módulos
 
@@ -50,7 +50,7 @@ Resultado: 14 cumplidos, 1 parcial (utilidad: falta reporte), 3 pendientes (prom
 | 8 Métodos de pago | Efectivo, tarjeta y transferencia con referencia manual, crédito del cliente, pago dividido | Terminal integrada, QR, tarjetas de regalo, saldo a favor, puntos; edición de métodos (4D) |
 | 9 Clientes y segmentos | Ficha con datos fiscales y dirección, grupos, segmentos (nuevos, frecuentes, en riesgo, sin compras, con saldo, vencidos, aceptan promociones), consentimiento, historial, exportación CSV, crédito y cuentas por cobrar | Lealtad/puntos (Fase 5), fusión de duplicados, campañas |
 | 10 Promociones y precios | Descuento manual con tope | Motor de promociones, cupones, listas de precios |
-| 11 Devoluciones | Cancelación en el turno | Devolución total/parcial, cambios, crédito en tienda |
+| 11 Devoluciones | Cancelación en el turno; devolución total/parcial con y sin ticket; cambios; vales canjeables; reembolso en efectivo, al medio original o a cuenta; política configurable | Devolución entre sucursales distintas a la de la venta con reembolso en otra caja (hoy sí se permite si el usuario ve ambas); vencimiento de vales |
 | 12 Facturación electrónica | — | Adaptador CFDI por PAC + sandbox |
 | 13 Reportes | Lista de ventas, detalle con utilidad, corte X/Z, existencias | Dashboard y reportes con filtros, comparativos y exportación |
 | 14 Offline | Completo para efectivo | Pagos no-efectivo offline (por decisión, no se ofrecen) |
@@ -58,6 +58,6 @@ Resultado: 14 cumplidos, 1 parcial (utilidad: falta reporte), 3 pendientes (prom
 
 ## 4. Roadmap restante
 
-- **Fase 4 · Operación comercial:** ~~4A compras, proveedores, traspasos, conteos y sugerencias~~ (entregado) · ~~4B clientes, crédito y pagos divididos~~ (entregado) · 4C devoluciones y cambios · 4D promociones, cupones, listas de precios, métodos de pago e impuestos editables y revisión de ventas con observaciones.
+- **Fase 4 · Operación comercial:** ~~4A compras, proveedores, traspasos, conteos y sugerencias~~ (entregado) · ~~4B clientes, crédito y pagos divididos~~ (entregado) · ~~4C devoluciones y cambios~~ (entregado) · 4D promociones, cupones, listas de precios, métodos de pago e impuestos editables y revisión de ventas con observaciones.
 - **Fase 5 · Crecimiento y analítica:** reportes y dashboard, exportaciones, facturación CFDI, pedidos omnicanal y ecommerce, lealtad, integraciones.
 - **Transversal:** despliegue (Supabase + Vercel), primer cliente piloto, impresión térmica directa, carrito deslizable en celular.

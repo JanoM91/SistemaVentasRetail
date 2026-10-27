@@ -42,6 +42,9 @@ export default async function PosPage() {
       creditSale: hasPermission(ctx, "pos.credit_sale"),
       creditModule: ctx.enabledModules.has("credit"),
       abono: ctx.enabledModules.has("credit") && hasPermission(ctx, "credit.view"),
+      returns: hasPermission(ctx, "returns.create"),
+      authorizeReturns: hasPermission(ctx, "returns.authorize"),
+      noTicketReturns: hasPermission(ctx, "returns.no_ticket"),
     },
     loadedAt: new Date().toISOString(),
   };

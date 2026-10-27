@@ -69,7 +69,7 @@ export const customers = pgTable(
   ],
 );
 
-export const CREDIT_MOVEMENT_KINDS = ["charge", "payment", "reversal", "adjustment"] as const;
+export const CREDIT_MOVEMENT_KINDS = ["charge", "payment", "reversal", "adjustment", "return"] as const;
 export type CreditMovementKind = (typeof CREDIT_MOVEMENT_KINDS)[number];
 
 /**

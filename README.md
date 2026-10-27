@@ -2,13 +2,14 @@
 
 Plataforma SaaS de gestión comercial para negocios retail: punto de venta, inventario, clientes, promociones y analítica, multiempresa y preparada para operar sin internet. Producto de Exkalibur Consulting (nombre comercial pendiente).
 
-**Estado: Fase 4 en curso — bloques 4A (compras e inventario avanzado) y 4B (clientes, crédito y pagos divididos) entregados.**
+**Estado: Fase 4 en curso — bloques 4A (compras), 4B (clientes y crédito) y 4C (devoluciones y cambios) entregados.**
 
 - **Fase 2 (base):** autenticación, cuentas (tenants), empresas, sucursales, almacenes, cajas, usuarios, roles y permisos, módulos activables, configuración y bitácora.
 - **Fase 3 (vender):** catálogo con variantes y códigos de barras, inventario con libro inmutable y costo promedio, caja con cortes X y Z, punto de venta táctil con ticket de 80 mm, venta **sin internet** con sincronización sin duplicados, app instalable (PWA).
 - **Fase 4A (comprar y mover):** proveedores, órdenes de compra con autorización, recepción parcial con flete prorrateado al costo, compra directa, devolución a proveedor con nota de crédito, cuentas por pagar, sugerencias de compra, traspasos entre sucursales con tránsito y conteo físico.
 - **Fase 4B (clientes y crédito):** ficha de clientes con datos fiscales, grupos y segmentos; cliente en la venta y alta rápida desde caja; cobro con varios métodos; venta a crédito con límite y autorización; abonos en caja que entran al corte; estado de cuenta y cuentas por cobrar por antigüedad.
-- **Siguiente (4C–4D):** devoluciones y cambios; promociones y listas de precios. Ver `docs/12-estado-y-pendientes.md`.
+- **Fase 4C (devoluciones):** devoluciones parciales o totales con y sin ticket, cambios con vale, reembolso en efectivo, al medio original, a cuenta o con vale, política configurable.
+- **Siguiente (4D):** promociones, cupones y listas de precios. Ver `docs/12-estado-y-pendientes.md`.
 
 ## Stack
 
@@ -67,7 +68,7 @@ Estas contraseñas son públicas (el repositorio es público). **Nunca siembres 
 | `npm run typecheck` | Verifica tipos con TypeScript. |
 | `npm run lint` | ESLint. |
 | `npm test` | Pruebas unitarias e integración (necesita `TEST_DATABASE_URL` en `.env.test`; la base se vacía en cada corrida). |
-| `npm run test:e2e` | Recorridos extremo a extremo con Playwright contra un servidor en marcha (`BASE_URL`, por defecto `http://localhost:3100`) y una base recién sembrada (`npm run db:reset`): POS en línea y sin conexión, sincronización y corte Z; administración; compras, traspasos y conteo; clientes, crédito y abonos. |
+| `npm run test:e2e` | Recorridos extremo a extremo con Playwright contra un servidor en marcha (`BASE_URL`, por defecto `http://localhost:3100`) y una base recién sembrada (`npm run db:reset`): POS en línea y sin conexión, sincronización y corte Z; administración; compras, traspasos y conteo; clientes, crédito y abonos; devoluciones y cambios. |
 | `npm run stock:verify` | Recalcula existencias desde el libro de inventario y las compara con los saldos (sale con código 1 si hay diferencias). |
 | `npm run check` | typecheck + lint + test + build. |
 | `npm run db:generate` | Genera una migración SQL a partir de los cambios en `src/server/db/schema`. |
@@ -123,6 +124,15 @@ Para usarlo como app: iPhone → Safari → Compartir → «Agregar a pantalla d
 - **Venta a crédito:** aparece «Crédito del cliente» si el cliente tiene crédito autorizado. Pide autorización de gerente si el vendedor no tiene el permiso «Vender a crédito», si excede el disponible o si el cliente tiene saldo vencido. El ticket incluye línea de firma. Sin internet no se vende a crédito.
 - **Abonos:** botón «Abono» en el punto de venta; el efectivo entra al corte del turno. Transferencias y tarjeta también se registran en la ficha del cliente.
 - **Estado de cuenta:** inmutable; los abonos se aplican a lo más antiguo y **Clientes → Por cobrar** muestra la antigüedad (al corriente, 1–30, 31–60, 61–90, +90 días).
+
+## Devoluciones y cambios
+
+- En el punto de venta: **Devolución** → folio del ticket (p. ej. `V-000123`) → cuánto regresa de cada producto y si vuelve al inventario o es merma → motivo → forma de reembolso.
+- Se devuelve lo que el cliente pagó realmente (con descuentos), proporcional por pieza; nunca más de lo vendido.
+- **Cambio:** se emite un vale con el valor devuelto y se aplica automáticamente al cobrar los productos nuevos; si sobra, el vale conserva el saldo. Los vales se canjean después con el método «Vale de devolución» y su folio.
+- **Sin ticket:** solo con vale, a precio vigente, y con permiso o autorización.
+- **Política** (Configuración → Devoluciones): días permitidos (30 por defecto; después se requiere autorización), aceptar o no sin ticket, y si el reembolso en efectivo requiere autorización (sí por defecto). El efectivo devuelto se resta del corte.
+- Una venta con devoluciones ya no se puede cancelar.
 
 ## Seguridad (resumen)
 

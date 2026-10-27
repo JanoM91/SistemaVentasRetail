@@ -247,6 +247,7 @@ export function PaymentModal({
   credit,
   canCreditSale,
   forceAuth,
+  initialTenders = [],
   onConfirm,
   onClose,
 }: {
@@ -259,12 +260,14 @@ export function PaymentModal({
   credit: CreditInfo;
   canCreditSale: boolean;
   forceAuth: boolean;
+  /** Pagos ya definidos (p. ej. el vale de un cambio). */
+  initialTenders?: Tender[];
   onConfirm: (tenders: Tender[], auth?: { username: string; password: string }) => void;
   onClose: () => void;
 }) {
   const visible = methods.filter((m) => m.kind !== "customer_credit" || (credit && !credit.blocked));
   const cash = visible.find((m) => m.kind === "cash") ?? visible[0];
-  const [tenders, setTenders] = useState<Tender[]>([]);
+  const [tenders, setTenders] = useState<Tender[]>(initialTenders);
   const [methodId, setMethodId] = useState(cash?.id ?? "");
   const [value, setValue] = useState("");
   const [reference, setReference] = useState("");
@@ -285,6 +288,8 @@ export function PaymentModal({
   const creditUsed = (isCredit ? applied : 0) + tenders.filter((t) => methods.find((m) => m.id === t.methodId)?.kind === "customer_credit").reduce((a, t) => a + t.amount, 0);
   const needsAuth = creditUsed > 0 && (forceAuth || !canCreditSale || (credit !== null && (creditUsed > credit.available || credit.overdue > 0)));
   const completes = applied >= remaining && remaining > 0;
+  /** Los pagos ya capturados cubren el total (p. ej. el vale de un cambio). */
+  const fullyPaid = remaining === 0 && tenders.length > 0;
   const quick = useMemo(() => {
     const opts = new Set<number>([remaining]);
     for (const step of [2000, 5000, 10000, 20000, 50000]) opts.add(Math.ceil(remaining / step) * step);
@@ -314,6 +319,10 @@ export function PaymentModal({
   };
   const submit = () => {
     if (busy) return;
+    if (fullyPaid) {
+      if (needsAuth && (!authUser || !authPass)) return;
+      return onConfirm(tenders, needsAuth ? { username: authUser, password: authPass } : undefined);
+    }
     if (!completes) return addPartial();
     if (invalid) return;
     onConfirm([...tenders, current()], needsAuth ? { username: authUser, password: authPass } : undefined);
@@ -381,8 +390,8 @@ export function PaymentModal({
               <input ref={inputRef} className="field mt-1 text-2xl" inputMode="decimal" placeholder={((isCredit ? creditDefault : remaining) / 100).toFixed(2)} value={value} onChange={(e) => setValue(e.target.value)} data-testid="tender-amount" />
             </label>
             {method?.requiresReference && (
-              <label className="block text-sm font-medium">Referencia / autorización
-                <input className="field mt-1" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Autorización de la terminal o folio de transferencia" data-testid="tender-reference" />
+              <label className="block text-sm font-medium">{method.kind === "prepaid" ? "Folio del vale" : "Referencia / autorización"}
+                <input className="field mt-1" value={reference} onChange={(e) => setReference(e.target.value)} placeholder={method.kind === "prepaid" ? "D-000001" : "Autorización de la terminal o folio de transferencia"} data-testid="tender-reference" />
               </label>
             )}
           </>
@@ -395,8 +404,8 @@ export function PaymentModal({
           </div>
         )}
         {error && <p className="rounded-app bg-danger-bg p-3 text-sm text-danger" role="alert">{error}</p>}
-        {completes ? (
-          <button type="submit" disabled={invalid || busy} className="w-full rounded-xl bg-primary py-4 text-lg font-semibold text-primary-fg disabled:opacity-50" data-testid="confirm-sale">
+        {completes || fullyPaid ? (
+          <button type="submit" disabled={(fullyPaid ? needsAuth && (!authUser || !authPass) : invalid) || busy} className="w-full rounded-xl bg-primary py-4 text-lg font-semibold text-primary-fg disabled:opacity-50" data-testid="confirm-sale">
             {busy ? "Registrando…" : "Confirmar venta (Enter)"}
           </button>
         ) : (

@@ -76,6 +76,14 @@ El historial de precios del proveedor se obtiene de `purchase_receipt_lines` (no
 | `customer_credit_movements` | **Inmutable** (trigger). Cargo por venta a crédito (con vencimiento), abono (folio `AB`, método, turno de caja si se cobró en caja), reversa por cancelación y ajuste con motivo. `balance_after` en cada fila. La antigüedad de saldos se calcula por PEPS. |
 | `sales.customer_id` | Cliente de la venta (opcional). |
 
+## 5c. Devoluciones y vales (implementado en 4C)
+
+| Tabla | Propósito |
+| --- | --- |
+| `sale_returns` | Devolución (folio `D` por sucursal, id generado por el POS para idempotencia) ligada a turno de caja, venta original (nula si es sin ticket) y cliente; motivo; importes; forma de reembolso (`cash`, `original`, `customer_account`, `store_credit`); `store_credit_balance` es el saldo del vale cuyo folio es el de la devolución. |
+| `sale_return_lines` | Lo devuelto por línea de venta: cantidad, importe proporcional a lo cobrado (la última unidad toma el resto exacto), costo original, si regresó al inventario (`return_in`) o fue merma. |
+| `store_credit_redemptions` | Canje de vales en ventas (pago de tipo `prepaid` con el folio como referencia); se revierte si la venta se cancela. |
+
 ## 6. Ventas y caja (F3 base; F4 completa)
 
 | Tabla | Propósito |

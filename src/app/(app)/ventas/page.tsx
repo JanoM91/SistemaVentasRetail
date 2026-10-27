@@ -5,6 +5,7 @@ import { requirePagePermission } from "@/server/context";
 import { listSales } from "@/server/modules/sales/service";
 import { formatCents } from "@/lib/money";
 import { formatDateTime } from "@/lib/format";
+import { VentasTabs } from "./tabs";
 
 export const metadata: Metadata = { title: "Ventas" };
 const PAGE = 50;
@@ -44,6 +45,7 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
   return (
     <>
       <PageHeader title="Ventas" description={q.turno ? "Ventas del turno seleccionado." : `Ventas de ${ctx.branch?.name ?? "la sucursal"}.`} actions={<ButtonLink href="/pos">Nueva venta</ButtonLink>} />
+      <VentasTabs ctx={ctx} active="/ventas" />
       <Card className="mb-4">
         <form method="get" className="grid gap-3 sm:grid-cols-[170px_170px_1fr_auto_auto]">
           {q.turno && <input type="hidden" name="turno" value={q.turno} />}

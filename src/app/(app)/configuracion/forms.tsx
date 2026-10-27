@@ -33,7 +33,7 @@ export function ModulesForm({ companyId, modules, canManage }: { companyId: stri
   );
 }
 
-export function SettingsForm({ companyId, settings, canManage }: { companyId: string; canManage: boolean; settings: { inventory?: { costingMethod?: string; allowNegativeStock?: boolean }; promotions?: { allowStacking?: boolean; maxDiscountPercent?: number }; pos?: { allowSaleWithoutCustomer?: boolean; requireCustomerForCredit?: boolean }; notifications?: { lowStockEmail?: string | null } } }) {
+export function SettingsForm({ companyId, settings, canManage }: { companyId: string; canManage: boolean; settings: { inventory?: { costingMethod?: string; allowNegativeStock?: boolean }; promotions?: { allowStacking?: boolean; maxDiscountPercent?: number }; pos?: { allowSaleWithoutCustomer?: boolean; requireCustomerForCredit?: boolean }; notifications?: { lowStockEmail?: string | null }; returns?: { maxDays?: number; allowWithoutTicket?: boolean; cashRefundNeedsAuthorization?: boolean } } }) {
   return (
     <AppForm action={updateSettingsAction} successMessage="Parámetros guardados.">
       <input type="hidden" name="companyId" value={companyId} />
@@ -59,6 +59,18 @@ export function SettingsForm({ companyId, settings, canManage }: { companyId: st
           <Checkbox name="pos.allowSaleWithoutCustomer" label="Ventas sin cliente registrado" hint="Público en general." defaultChecked={settings.pos?.allowSaleWithoutCustomer ?? true} />
           <Checkbox name="pos.requireCustomerForCredit" label="Exigir cliente en ventas a crédito" defaultChecked={settings.pos?.requireCustomerForCredit ?? true} />
         </div>
+        <fieldset className="space-y-3 rounded-app border border-border p-3">
+          <legend className="px-1 text-sm font-medium">Devoluciones</legend>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <FormField name="returns.maxDays" label="Días para devolver" hint="Después se requiere autorización.">
+              <Input name="returns.maxDays" type="number" min={0} max={365} defaultValue={settings.returns?.maxDays ?? 30} />
+            </FormField>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Checkbox name="returns.allowWithoutTicket" label="Aceptar devoluciones sin ticket" hint="Solo con vale y con permiso o autorización." defaultChecked={settings.returns?.allowWithoutTicket ?? true} />
+            <Checkbox name="returns.cashRefundNeedsAuthorization" label="Reembolso en efectivo requiere autorización" hint="Un gerente confirma antes de sacar dinero de la caja." defaultChecked={settings.returns?.cashRefundNeedsAuthorization ?? true} />
+          </div>
+        </fieldset>
         {canManage && <SubmitButton>Guardar parámetros</SubmitButton>}
       </fieldset>
     </AppForm>

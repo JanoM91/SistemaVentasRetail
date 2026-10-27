@@ -52,6 +52,8 @@ export type CompanySettings = {
   invoicing?: { provider?: string; autoInvoice?: boolean };
   notifications?: { lowStockEmail?: string | null };
   pos?: { requireCustomerForCredit?: boolean; allowSaleWithoutCustomer?: boolean };
+  /** Política de devoluciones (4C). */
+  returns?: { maxDays?: number; allowWithoutTicket?: boolean; cashRefundNeedsAuthorization?: boolean };
 };
 
 export const companies = pgTable(

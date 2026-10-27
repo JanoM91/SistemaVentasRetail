@@ -4,6 +4,7 @@ import { db, type DbOrTx } from "@/server/db";
 import {
   cashMovements,
   customerCreditMovements,
+  saleReturns,
   cashRegisters,
   cashSessions,
   paymentMethods,
@@ -153,6 +154,14 @@ export async function computeSummary(conn: DbOrTx, session: typeof cashSessions.
     .groupBy(paymentMethods.id, paymentMethods.name, paymentMethods.kind)
     .orderBy(paymentMethods.name);
   const cashCreditPayments = abonos.filter((p) => p.kind === "cash").reduce((a, p) => a + p.amount, 0);
+  // Devoluciones del turno por forma de reembolso; solo el efectivo sale del cajón.
+  const ret = await conn
+    .select({ method: saleReturns.refundMethod, n: sql<number>`count(*)`.mapWith(Number), sum: sql<number>`coalesce(sum(${saleReturns.total}),0)`.mapWith(Number) })
+    .from(saleReturns)
+    .where(eq(saleReturns.cashSessionId, session.id))
+    .groupBy(saleReturns.refundMethod);
+  const by = (m: string) => ret.find((r) => r.method === m)?.sum ?? 0;
+  const refunds = { count: ret.reduce((a, r) => a + r.n, 0), total: ret.reduce((a, r) => a + r.sum, 0), cash: by("cash"), original: by("original"), customerAccount: by("customer_account"), storeCredit: by("store_credit") };
   return {
     salesCount,
     salesTotal,
@@ -161,10 +170,11 @@ export async function computeSummary(conn: DbOrTx, session: typeof cashSessions.
     byMethod: pay,
     cashSales,
     creditPayments: abonos,
+    refunds,
     cashCreditPayments,
     deposits,
     withdrawals,
-    expectedCash: session.openingAmount + cashSales + cashCreditPayments + deposits - withdrawals,
+    expectedCash: session.openingAmount + cashSales + cashCreditPayments + deposits - withdrawals - refunds.cash,
   };
 }
 

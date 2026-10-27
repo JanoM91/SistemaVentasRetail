@@ -2,14 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, CloudOff, HandCoins, Pause, Printer, RefreshCw, Search, Star, User, Wifi, X } from "lucide-react";
+import { ArrowLeft, CloudOff, HandCoins, Pause, Printer, RefreshCw, Search, Star, Undo2, User, Wifi, X } from "lucide-react";
 import { computeTotals, formatCents, normalizeQty } from "@/lib/money";
 import { localDb, nextClientSequence, uuidv7, type HeldCart, type RecentSale } from "@/lib/pos/local-db";
 import { CLIENT_HEADERS, outboxCounts, syncOutbox } from "@/lib/pos/sync";
-import { AbonoTicket, Ticket, type AbonoTicketData, type TicketData } from "@/components/pos/ticket";
+import { AbonoTicket, ReturnTicket, Ticket, type AbonoTicketData, type ReturnTicketData, type TicketData } from "@/components/pos/ticket";
 import type { PosCatalog, PosItem } from "@/server/modules/pos/catalog";
 import { CartView, DiscountModal, groupProducts, lineAmounts, Modal, norm, PaymentModal, ProductGrid, VariantModal, type CartLine, type ProductTile, type Tender } from "./pos-parts";
 import { AbonoModal, CustomerModal, type PosCustomer } from "./pos-customer";
+import { ReturnModal } from "./pos-return";
 
 export type PosRegister = { id: string; code: string; name: string; session: { id: string; openedAt: string; openedByName: string | null } | null };
 
@@ -19,7 +20,7 @@ export type PosInitial = {
   company: { tradeName: string; legalName: string; taxId: string | null; address: Record<string, string | undefined>; currency: string; timezone: string; maxDiscountPercent: number };
   branch: { id: string; name: string };
   registers: PosRegister[];
-  can: { discount: boolean; editPrice: boolean; openCash: boolean; customers: boolean; createCustomers: boolean; creditSale: boolean; creditModule: boolean; abono: boolean };
+  can: { discount: boolean; editPrice: boolean; openCash: boolean; customers: boolean; createCustomers: boolean; creditSale: boolean; creditModule: boolean; abono: boolean; returns: boolean; authorizeReturns: boolean; noTicketReturns: boolean };
   loadedAt: string;
 };
 
@@ -55,6 +56,10 @@ export function PosApp({ initial }: { initial: PosInitial }) {
   const [abonoOpen, setAbonoOpen] = useState(false);
   const [abonoTicket, setAbonoTicket] = useState<AbonoTicketData | null>(null);
   const [forceAuth, setForceAuth] = useState(false);
+  const [returnOpen, setReturnOpen] = useState(false);
+  const [returnTicket, setReturnTicket] = useState<ReturnTicketData | null>(null);
+  /** Vale de un cambio en curso: se aplica como pago de los productos nuevos. */
+  const [voucher, setVoucher] = useState<{ folio: string; balance: number } | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   /** UUID de la venta en cobro: se conserva entre reintentos para que el servidor no la duplique. */
   const saleIdRef = useRef<string | null>(null);
@@ -273,6 +278,7 @@ export function PosApp({ initial }: { initial: PosInitial }) {
     setDiscountAuth(null);
     setCustomer(null);
     setCustomerName(null);
+    setVoucher(null);
     setQuery("");
     focusSearch();
   };
@@ -433,6 +439,7 @@ export function PosApp({ initial }: { initial: PosInitial }) {
     setDiscountAuth(null);
     setCustomer(null);
     setCustomerName(null);
+    setVoucher(null);
     localDb.recentTrim(50);
     if (navigator.onLine) runSync(true);
   };
@@ -489,6 +496,11 @@ export function PosApp({ initial }: { initial: PosInitial }) {
         <button onClick={() => setPanel("pending")} className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${counts.pending || counts.rejected ? "bg-warning/15 text-warning" : "bg-surface-2 text-muted"}`} data-testid="pending-badge">
           <RefreshCw className={`size-3.5 ${syncing ? "animate-spin" : ""}`} /> {counts.pending} pendiente{counts.pending === 1 ? "" : "s"}{counts.rejected ? ` · ${counts.rejected} rechazada(s)` : ""}
         </button>
+        {initial.can.returns && (
+          <button onClick={() => setReturnOpen(true)} disabled={!online || !sessionOpen || !catalog} title={!online ? "Requiere conexión" : !sessionOpen ? "Abre la caja" : "Devolución o cambio"} className="flex items-center gap-1 rounded-full bg-surface-2 px-2.5 py-1 text-xs font-medium text-muted disabled:opacity-40" data-testid="return-button">
+            <Undo2 className="size-3.5" /> Devolución
+          </button>
+        )}
         {initial.can.abono && (
           <button onClick={() => setAbonoOpen(true)} disabled={!online || !sessionOpen || !catalog} title={!online ? "Requiere conexión" : !sessionOpen ? "Abre la caja" : "Recibir abono de un cliente"} className="flex items-center gap-1 rounded-full bg-surface-2 px-2.5 py-1 text-xs font-medium text-muted disabled:opacity-40" data-testid="abono-button">
             <HandCoins className="size-3.5" /> Abono
@@ -561,6 +573,12 @@ export function PosApp({ initial }: { initial: PosInitial }) {
             <h2 className="font-semibold">Venta actual</h2>
             {cart.length > 0 && <button className="text-sm text-danger" onClick={() => confirm("¿Vaciar la venta?") && clearSale()}>Vaciar</button>}
           </div>
+          {voucher && (
+            <div className="flex items-center justify-between gap-2 border-b border-border bg-success/10 px-3 py-2 text-sm" data-testid="exchange-banner">
+              <span>Cambio · vale <b className="font-mono">{voucher.folio}</b> por {formatCents(voucher.balance, cur)}. Agrega los productos nuevos y cobra.</span>
+              <button className="rounded p-1 hover:bg-surface-2" aria-label="Quitar vale de la venta" onClick={() => setVoucher(null)}><X className="size-4" /></button>
+            </div>
+          )}
           {initial.can.customers && (
             <div className="border-b border-border px-3 py-2">
               {customer || customerName ? (
@@ -639,6 +657,10 @@ export function PosApp({ initial }: { initial: PosInitial }) {
           credit={customer?.credit ? { name: customer.name, available: customer.credit.available, overdue: customer.credit.overdue, blocked: customer.credit.blocked } : null}
           canCreditSale={initial.can.creditSale}
           forceAuth={forceAuth}
+          initialTenders={(() => {
+            const vale = catalog.paymentMethods.find((m) => m.kind === "prepaid");
+            return voucher && vale ? [{ methodId: vale.id, amount: Math.min(voucher.balance, totals.total), received: null, reference: voucher.folio }] : [];
+          })()}
           onConfirm={confirmSale}
           onClose={() => { setPaying(false); setForceAuth(false); focusSearch(); }}
         />
@@ -748,6 +770,47 @@ export function PosApp({ initial }: { initial: PosInitial }) {
             });
           }}
         />
+      )}
+      {returnOpen && register && catalog && (
+        <ReturnModal
+          registerId={register.id}
+          items={catalog.items}
+          currency={cur}
+          can={{ authorize: initial.can.authorizeReturns, noTicket: initial.can.noTicketReturns }}
+          onClose={() => { setReturnOpen(false); focusSearch(); }}
+          onDone={(r) => {
+            setReturnOpen(false);
+            if (r.exchange) setVoucher({ folio: r.folio, balance: r.storeCreditBalance });
+            setReturnTicket({
+              company: { tradeName: initial.company.tradeName, legalName: initial.company.legalName, taxId: initial.company.taxId, address: initial.company.address },
+              branchName: initial.branch.name,
+              folio: r.folio,
+              saleFolio: r.saleFolio,
+              createdAt: r.createdAt,
+              timezone: initial.company.timezone,
+              currency: cur,
+              cashierName: initial.user.fullName,
+              customerName: r.customerName,
+              lines: r.lines,
+              total: r.total,
+              refundLabel: r.refundLabel,
+              voucher: r.refundMethod === "store_credit" ? { balance: r.storeCreditBalance } : null,
+            });
+            loadCatalog();
+          }}
+        />
+      )}
+      {returnTicket && (
+        <Modal title={`Devolución ${returnTicket.folio}`} onClose={() => { setReturnTicket(null); focusSearch(); }}>
+          <div className="print-area rounded-app border border-border bg-white">
+            <ReturnTicket t={returnTicket} />
+          </div>
+          {returnTicket.refundLabel === "Efectivo" && <p className="mt-2 rounded-app bg-warning/10 p-2 text-sm">Entrega {formatCents(returnTicket.total, cur)} en efectivo al cliente.</p>}
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            <button className="flex items-center justify-center gap-2 rounded-xl border border-border py-3 font-medium" onClick={printTicket}><Printer className="size-5" /> Imprimir</button>
+            <button className="rounded-xl bg-primary py-3 font-semibold text-primary-fg" onClick={() => { setReturnTicket(null); focusSearch(); }} autoFocus data-testid="return-done">{voucher ? "Elegir productos nuevos" : "Listo"}</button>
+          </div>
+        </Modal>
       )}
       {abonoTicket && (
         <Modal title={`Abono ${abonoTicket.folio}`} onClose={() => { setAbonoTicket(null); focusSearch(); }}>

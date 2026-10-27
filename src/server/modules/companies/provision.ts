@@ -136,6 +136,8 @@ export async function provisionCompany(
       { code: "TRANSFER", name: "Transferencia", kind: "transfer" as const, requiresReference: true, sortOrder: 4 },
       // Solo se ofrece en el POS cuando el cliente tiene crédito autorizado.
       { code: "CREDITO", name: "Crédito del cliente", kind: "customer_credit" as const, sortOrder: 9 },
+      // Canje de vales por devolución (se captura el folio del vale).
+      { code: "VALE", name: "Vale de devolución", kind: "prepaid" as const, requiresReference: true, sortOrder: 10 },
     ].map((m) => ({ ...m, tenantId: input.tenantId, companyId: company.id, provider: "manual", createdBy: by, updatedBy: by })),
   );
 
