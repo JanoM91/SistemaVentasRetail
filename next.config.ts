@@ -12,6 +12,8 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  // pdfkit lee sus fuentes (AFM) del disco: no se empaqueta.
+  serverExternalPackages: ["pdfkit", "exceljs"],
   poweredByHeader: false,
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }];

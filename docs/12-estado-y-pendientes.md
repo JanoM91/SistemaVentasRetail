@@ -1,6 +1,6 @@
 # 12 · Estado del producto y pendientes
 
-Fecha: 2026-10-27 (cierre de la Fase 4: bloques 4A–4D) · Base: prompt maestro (15 módulos y 18 criterios de aceptación) contra lo entregado en las Fases 1–4.
+Fecha: 2026-10-27 (Fase 5A: reportes y dashboard) · Base: prompt maestro (15 módulos y 18 criterios de aceptación) contra lo entregado en las Fases 1–4.
 
 ## 1. Dónde vive el proyecto
 
@@ -25,16 +25,16 @@ Fecha: 2026-10-27 (cierre de la Fase 4: bloques 4A–4D) · Base: prompt maestro
 | 8 | Clientes e historial | Cumplido (4B) |
 | 9 | Devoluciones y cambios | Cumplido (4C) |
 | 10 | Control de cajas y cortes | Cumplido (F3) |
-| 11 | Costos, margen y utilidad | **Parcial**: por venta y en el inventario; falta el reporte |
-| 12 | Reportes por sucursal y periodo | **Pendiente** (hoy: lista de ventas del día y corte de caja) |
+| 11 | Costos, margen y utilidad | Cumplido (5A: reporte de utilidad por producto, categoría y sucursal; marcada incompleta si faltan costos) |
+| 12 | Reportes por sucursal y periodo | Cumplido (5A: 7 reportes con comparativo y exportación CSV/XLSX/PDF) |
 | 13 | Permisos impiden acciones no autorizadas | Cumplido (F2–F3) |
 | 14 | Operaciones críticas auditadas | Cumplido (F2–F3) |
 | 15 | Sin botones principales sin función | Cumplido en lo entregado |
 | 16 | Sin datos falsos para simular integraciones | Cumplido (aún no hay integraciones) |
 | 17 | Datos de prueba, documentación, credenciales demo | Cumplido |
-| 18 | Pruebas unitarias, de integración y de flujos críticos | Cumplido (98 + 6 recorridos E2E) |
+| 18 | Pruebas unitarias, de integración y de flujos críticos | Cumplido (105 + 7 recorridos E2E) |
 
-Resultado: 16 cumplidos, 1 parcial (utilidad: falta reporte), 1 pendiente (reportes por sucursal y periodo). Ambos son el inicio de la Fase 5.
+Resultado: **18 de 18 criterios cumplidos** en el alcance entregado. Lo que sigue (CFDI, pedidos omnicanal, lealtad, integraciones) son módulos del prompt maestro aún no construidos, con sus propios criterios AC-42 a AC-44.
 
 ## 3. Módulos
 
@@ -52,12 +52,12 @@ Resultado: 16 cumplidos, 1 parcial (utilidad: falta reporte), 1 pendiente (repor
 | 10 Promociones y precios | Descuento manual con tope; motor de promociones (8 tipos, condiciones, prioridad, acumulación); cupones; listas de precios por grupo | Promociones por canal (Fase 5, con canales); vista previa «¿qué promociones aplicarían a esta venta?» en el back-office |
 | 11 Devoluciones | Cancelación en el turno; devolución total/parcial con y sin ticket; cambios; vales canjeables; reembolso en efectivo, al medio original o a cuenta; política configurable | Devolución entre sucursales distintas a la de la venta con reembolso en otra caja (hoy sí se permite si el usuario ve ambas); vencimiento de vales |
 | 12 Facturación electrónica | — | Adaptador CFDI por PAC + sandbox |
-| 13 Reportes | Lista de ventas, detalle con utilidad, corte X/Z, existencias | Dashboard y reportes con filtros, comparativos y exportación |
+| 13 Reportes | Dashboard (indicadores con comparativo, venta por día u hora, formas de pago, productos y categorías), 7 reportes con filtro de periodo y sucursal, utilidad con aviso de costos faltantes, exportación CSV/XLSX/PDF, «Hoy» en Inicio | Envío programado por correo (`reports.schedule`, con la integración de mensajería), reportes guardados, metas por sucursal |
 | 14 Offline | Completo para efectivo | Pagos no-efectivo offline (por decisión, no se ofrecen) |
 | 15 Integraciones | Lector de códigos e impresión vía navegador | Adaptadores de pagos, facturación, mensajería, ecommerce |
 
 ## 4. Roadmap restante
 
 - **Fase 4 · Operación comercial:** ~~4A compras, proveedores, traspasos, conteos y sugerencias~~ (entregado) · ~~4B clientes, crédito y pagos divididos~~ (entregado) · ~~4C devoluciones y cambios~~ (entregado) · ~~4D promociones, cupones, listas de precios, métodos e impuestos editables y revisión~~ (entregado). **Fase 4 completa.**
-- **Fase 5 · Crecimiento y analítica:** reportes y dashboard, exportaciones, facturación CFDI, pedidos omnicanal y ecommerce, lealtad, integraciones.
+- **Fase 5 · Crecimiento y analítica:** ~~5A reportes, dashboard y exportaciones~~ (entregado) · 5B facturación CFDI 4.0 con sandbox identificado · 5C pedidos omnicanal · 5D lealtad y saldo a favor · 5E integraciones de pago y mensajería.
 - **Transversal:** despliegue (Supabase + Vercel), primer cliente piloto, impresión térmica directa, carrito deslizable en celular.

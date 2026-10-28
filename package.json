@@ -18,15 +18,17 @@
     "test:unit": "vitest run tests/unit",
     "test:integration": "vitest run tests/integration",
     "check": "npm run typecheck && npm run lint && npm test && npm run build",
-    "test:e2e": "node tests/e2e/pos.mjs && node tests/e2e/smoke.mjs && node tests/e2e/compras.mjs && node tests/e2e/clientes.mjs && node tests/e2e/devoluciones.mjs && node tests/e2e/promociones.mjs",
+    "test:e2e": "node tests/e2e/pos.mjs && node tests/e2e/smoke.mjs && node tests/e2e/compras.mjs && node tests/e2e/clientes.mjs && node tests/e2e/devoluciones.mjs && node tests/e2e/promociones.mjs && node tests/e2e/reportes.mjs",
     "stock:verify": "tsx scripts/verify-stock.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
     "dotenv": "^18.0.9",
     "drizzle-orm": "^0.45.4",
+    "exceljs": "^4.4.0",
     "lucide-react": "^1.61.0",
     "next": "15.5.28",
+    "pdfkit": "^0.17.2",
     "pg": "^8.23.1",
     "react": "19.1.0",
     "react-dom": "19.1.0",
@@ -37,6 +39,7 @@
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^22.20.5",
+    "@types/pdfkit": "^0.17.7",
     "@types/pg": "^8.23.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
@@ -47,5 +50,8 @@
     "tsx": "^4.23.15",
     "typescript": "^5",
     "vitest": "^3.2.7"
+  },
+  "overrides": {
+    "uuid": "^11.1.1"
   }
 }

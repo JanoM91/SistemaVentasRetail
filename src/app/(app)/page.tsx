@@ -8,6 +8,9 @@ import { listUsers } from "@/server/modules/users/service";
 import { queryAudit } from "@/server/audit";
 import { AREA_LABELS } from "@/server/authz/permissions";
 import { formatDateTime } from "@/lib/format";
+import { formatCents } from "@/lib/money";
+import { getSummary, reportFilter } from "@/server/modules/reports/service";
+import { Kpi } from "./reportes/kpi";
 
 export default async function HomePage() {
   const ctx = await requireContext();
@@ -15,6 +18,8 @@ export default async function HomePage() {
   const canBranches = hasPermission(ctx, "branches.view");
   const canUsers = hasPermission(ctx, "users.view");
   const canAudit = hasPermission(ctx, "audit.view");
+  const canReports = hasPermission(ctx, "reports.view") && !!ctx.company;
+  const today = canReports ? await getSummary(reportFilter(ctx, { periodo: "hoy" })) : null;
 
   const [companies, branches, users, audit] = await Promise.all([
     canCompanies ? listCompanies(ctx) : [],
@@ -36,6 +41,18 @@ export default async function HomePage() {
         <Alert tone="warning" title="No tienes una empresa asignada">
           Pide a un administrador que te asigne un rol en alguna empresa.
         </Alert>
+      )}
+
+      {today && ctx.company && (
+        <Card title="Hoy" className="mb-6" actions={<Link className="link text-sm" href="/reportes">Ver reportes</Link>}>
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" data-testid="home-today">
+            <Kpi label="Venta neta" value={formatCents(today.current.netSales, ctx.company.currency)} current={today.current.netSales} previous={today.previous.netSales} />
+            <Kpi label="Tickets" value={today.current.tickets} current={today.current.tickets} previous={today.previous.tickets} />
+            <Kpi label="Ticket promedio" value={formatCents(today.current.avgTicket, ctx.company.currency)} current={today.current.avgTicket} previous={today.previous.avgTicket} />
+            <Kpi label="Devoluciones" value={formatCents(today.current.returnsTotal, ctx.company.currency)} current={today.current.returnsTotal} previous={today.previous.returnsTotal} />
+          </div>
+          <p className="mt-2 text-xs text-muted">Comparado con ayer, todas tus sucursales.</p>
+        </Card>
       )}
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">

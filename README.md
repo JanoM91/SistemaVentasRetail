@@ -68,7 +68,7 @@ Estas contraseñas son públicas (el repositorio es público). **Nunca siembres 
 | `npm run typecheck` | Verifica tipos con TypeScript. |
 | `npm run lint` | ESLint. |
 | `npm test` | Pruebas unitarias e integración (necesita `TEST_DATABASE_URL` en `.env.test`; la base se vacía en cada corrida). |
-| `npm run test:e2e` | Recorridos extremo a extremo con Playwright contra un servidor en marcha (`BASE_URL`, por defecto `http://localhost:3100`) y una base recién sembrada (`npm run db:reset`): POS en línea y sin conexión, sincronización y corte Z; administración; compras, traspasos y conteo; clientes, crédito y abonos; devoluciones y cambios; promociones, cupones y listas de precios. |
+| `npm run test:e2e` | Recorridos extremo a extremo con Playwright contra un servidor en marcha (`BASE_URL`, por defecto `http://localhost:3100`) y una base recién sembrada (`npm run db:reset`): POS en línea y sin conexión, sincronización y corte Z; administración; compras, traspasos y conteo; clientes, crédito y abonos; devoluciones y cambios; promociones, cupones y listas de precios; reportes y exportaciones. |
 | `npm run stock:verify` | Recalcula existencias desde el libro de inventario y las compara con los saldos (sale con código 1 si hay diferencias). |
 | `npm run check` | typecheck + lint + test + build. |
 | `npm run db:generate` | Genera una migración SQL a partir de los cambios en `src/server/db/schema`. |
@@ -142,6 +142,15 @@ Para usarlo como app: iPhone → Safari → Compartir → «Agregar a pantalla d
 - **Listas de precios:** Promociones → Listas de precios; asígnala a un grupo en Clientes → Grupos. Al elegir un cliente del grupo, el POS cambia los precios.
 - **Métodos de pago e impuestos:** Configuración (solo el dueño). Siempre debe quedar un efectivo activo.
 - **Ventas → Por revisar:** ventas sin conexión que entraron con observaciones y envíos rechazados; se marcan revisadas con nota.
+
+## Reportes
+
+- **Menú Reportes** (gerente y dueño; el cajero no lo ve): resumen con indicadores comparados contra el periodo anterior, venta por día (o por hora si eliges un solo día), formas de pago, productos y categorías.
+- **Pestañas:** Ventas (sucursal, forma de pago, vendedor, hora, día de la semana), Productos y utilidad, Inventario (valor, cobertura, sin movimiento), Clientes, Promociones, Cortes de caja.
+- **Filtros:** periodo (hoy, ayer, 7 o 30 días, mes, mes anterior, año o «Fechas…» para un rango) y sucursal. Los días cortan a medianoche en la zona horaria de la empresa.
+- **Exportar:** botones Excel, CSV y PDF con las mismas tablas que ves (`reports.export`). También por API: `GET /api/v1/reports/export?reporte=ventas&formato=xlsx&periodo=30d`.
+- **Utilidad:** solo con `reports.view_profit`. Si vendiste productos sin costo registrado, su venta no se cuenta como utilidad y el reporte lo avisa como «incompleta».
+- **Inicio** muestra la venta de hoy contra ayer para quien puede ver reportes.
 
 ## Seguridad (resumen)
 

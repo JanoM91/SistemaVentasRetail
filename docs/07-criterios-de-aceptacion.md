@@ -55,7 +55,12 @@ Se entrega en cuatro bloques (4A compras e inventario avanzado · 4B clientes, c
 
 ## Fase 5
 
-AC-40 Reportes por sucursal y periodo con exportación CSV/XLSX/PDF. · AC-41 Utilidad marcada como incompleta si faltan costos. · AC-42 Pedidos omnicanal con estados unificados. · AC-43 Facturación con adaptador real o sandbox identificado. · AC-44 Integraciones por adaptador sin datos falsos.
+| AC | Criterio | Prueba | Estado |
+| --- | --- | --- | --- |
+| AC-40 | Reportes por sucursal y periodo (hoy, ayer, 7 y 30 días, mes, mes anterior, año o fechas) en la zona horaria de la empresa, comparados con el periodo anterior: resumen, ventas (sucursal, forma de pago, vendedor, hora, día), productos y categorías, inventario y cobertura, clientes, promociones y cortes; exportación CSV/XLSX/PDF idéntica a lo que se ve; permisos `reports.view`/`reports.export`. | U: `period.test.ts`; I: `phase5a.test.ts` (zona horaria, permisos, 7 reportes × 3 formatos); E: `reportes.mjs` | Cubierto (5A) |
+| AC-41 | Utilidad bruta solo con `reports.view_profit`; las líneas sin costo no se cuentan como utilidad, se reporta su venta y la utilidad/margen se marcan como incompletos. | I: `phase5a.test.ts` › resumen con producto sin costo; E: `reportes.mjs` | Cubierto (5A) |
+
+Pendientes de la fase: AC-42 Pedidos omnicanal con estados unificados. · AC-43 Facturación con adaptador real o sandbox identificado. · AC-44 Integraciones por adaptador sin datos falsos.
 
 ## Criterio global de "terminado"
 

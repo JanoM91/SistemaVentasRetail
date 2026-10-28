@@ -24,7 +24,7 @@ Sin fechas: Jano no ha fijado una fecha de inicio ni dedicación del equipo. Las
 
 ## Orden recomendado dentro de la Fase 5
 
-1. Reportes y dashboard (ventas, utilidad, inventario, clientes, promociones) con filtros por sucursal y periodo y exportación CSV/XLSX/PDF: cierra los dos criterios del prompt maestro que faltan.
+1. ~~Reportes y dashboard (ventas, utilidad, inventario, clientes, promociones) con filtros por sucursal y periodo y exportación CSV/XLSX/PDF~~ — entregado en 5A (`docs/14-entrega-fase-5.md`).
 2. Facturación CFDI 4.0 por adaptador con modo sandbox identificado (factura de venta, global y desde ticket por el cliente).
 3. Pedidos omnicanal (WhatsApp, teléfono, ecommerce) con estados unificados y reserva de inventario.
 4. Lealtad (puntos o sellos) y saldo a favor del cliente.
